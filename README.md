@@ -31,7 +31,7 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
     s3_path:    <optional prefix to prepend to object requests>
     
     
-### Behavior
+## Behavior
 
 Assume the configuration consists of:
 
@@ -59,3 +59,9 @@ Any amazon specific headers are removed.
 
 This permits e.g. use of nginx in front of s3helper without nginx having to know a single thing
 about S3, credentials, or magic headers.
+
+
+## Statsd
+
+s3helper outputs stats for object retrieval times and request counts to the configured statsd/collectd
+endpoint.
