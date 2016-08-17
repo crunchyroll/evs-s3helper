@@ -7,7 +7,7 @@ bucket).
 
 ## Arguments
 
-Run "playback-api -h" to see a list of arguments.
+Run "s3-helper -h" to see a list of arguments.
 
 
 ## Configuration
