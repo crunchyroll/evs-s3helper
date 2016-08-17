@@ -40,7 +40,7 @@ Assume the configuration consists of:
     s3_path:    /chris
 
 s3helper receives an HTTP request from 127.0.0.1, e.g. `GET /abcdef12345678/manifest.json`
-It takes this requests and maps it to an S3 bucket URL,
+It takes this request and maps it to an S3 bucket URL,
     `http://s3-us-west-2.amazonaws.com/evs-dev/chris/abcdef12345678/manifest.json`
 An http GET request for this is made.
 The result is forwarded and the following headers retained:
