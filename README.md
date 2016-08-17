@@ -21,8 +21,7 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
     logging:
             ident: <syslog ident, default is "s3-helper">
             level: <syslog level, default is "info">
-                concurrency: <explicit runtime concurrency, default is 0 which makes it match # of CPUs>
-
+    concurrency: <explicit runtime concurrency, default is 0 which makes it match # of CPUs>
     statsd_addr:  <default is "127.0.0.1:8125">
     statsd_environment: <default is "dev">
     
