@@ -1,0 +1,9 @@
+    listen: "127.0.0.1:8080"
+    logging:
+        ident: s3-helper
+        level: debug
+    s3_region:     us-west-2
+    s3_bucket:     evs-prod
+    concurrency:   0
+    statsd_addr:   "127.0.0.1:8125"
+    statsd_env:    dev
