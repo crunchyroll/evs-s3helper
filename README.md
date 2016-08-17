@@ -23,7 +23,7 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
             level: <syslog level, default is "info">
     concurrency: <explicit runtime concurrency, default is 0 which makes it match # of CPUs>
     statsd_addr:  <default is "127.0.0.1:8125">
-    statsd_environment: <default is "dev">
+    statsd_env:   <default is "dev">
     
     s3_bucket:  <name of S3 bucket to forward object requests to>
     s3_region:  <region of S3 bucket>
