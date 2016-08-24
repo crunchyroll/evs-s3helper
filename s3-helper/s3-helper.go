@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/crunchyroll/evs-s3helper/mapper"
 	"github.com/crunchyroll/go-aws-auth"
 	"go.codemobs.com/vps/common/config"
 	"go.codemobs.com/vps/common/logging"
@@ -37,6 +38,8 @@ type Config struct {
 	S3Region string `yaml:"s3_region"`
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
+
+	Map      mapper.Config `yaml:"map" optional:"true"`
 
 	StatsdAddr        string `yaml:"statsd_addr"`
 	StatsdEnvironment string `yaml:"statsd_env"`
@@ -195,8 +198,11 @@ func main() {
 	statter.Inc("start", 1, 1)
 	defer statter.Inc("stop", 1, 1)
 
+	m := mapper.NewMapper(&conf.Map, statter)
+
 	mux := http.NewServeMux()
 
+	mux.Handle("/map", http.HandlerFunc(m.ManifestHandler))
 	mux.Handle("/", http.HandlerFunc(forwardToS3))
 
 	if *pprofFlag {
