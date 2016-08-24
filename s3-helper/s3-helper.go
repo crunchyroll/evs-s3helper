@@ -108,6 +108,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logging.Debugf("request for media object: %s", r.URL.String())
+
 	// Make sure that RemoteAddr is 127.0.0.1 so it comes off a local proxy
 	a := strings.SplitN(r.RemoteAddr, ":", 2)
 	if len(a) != 2 || a[0] != "127.0.0.1" {
@@ -172,6 +174,12 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	logging.Debugf("404: not found: %s", r.URL.String())
+	w.WriteHeader(404)
+}
+
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -202,8 +210,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/map", http.HandlerFunc(m.ManifestHandler))
-	mux.Handle("/", http.HandlerFunc(forwardToS3))
+	mux.Handle("/media/", http.HandlerFunc(forwardToS3))
+	mux.Handle("/multimap/", http.HandlerFunc(m.MultiURLMapper))
+	mux.Handle("/", http.HandlerFunc(notFoundHandler))
 
 	if *pprofFlag {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
