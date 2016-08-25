@@ -25,6 +25,8 @@ import (
 	"go.codemobs.com/vps/common/util"
 )
 
+const mediaRoot = "/media"
+
 // Default config file
 const configFileDefault = "/mob/etc/s3-helper.yml"
 
@@ -117,7 +119,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	path := r.URL.Path
+	path := strings.TrimPrefix(r.URL.Path, mediaRoot)
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
@@ -210,8 +212,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/media/", http.HandlerFunc(forwardToS3))
-	mux.Handle("/multimap/", http.HandlerFunc(m.MultiURLMapper))
+	mux.Handle(mediaRoot + "/", http.HandlerFunc(forwardToS3))
+	mux.Handle("/single/", http.HandlerFunc(m.MultiURLMapper))
 	mux.Handle("/", http.HandlerFunc(notFoundHandler))
 
 	if *pprofFlag {

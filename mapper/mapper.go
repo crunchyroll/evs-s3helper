@@ -66,25 +66,19 @@ func (m *Mapper) MultiURLMapper(w http.ResponseWriter, r* http.Request) {
 	}
 
 	// Example incoming path:
-	//    /multimap/evs/w5e0x2kuzklnklp_2414279.mp4
+	//    /multimap/evs/w5e0x2kuzklnklp/2414279.mp4
 
 	logging.Debugf("Mapper: request for URL: %s", r.URL.String())
 
-	parts := strings.SplitN(r.URL.String(), "/", 4)
+	parts := strings.SplitN(r.URL.String(), "/", 5)
 
-	if len(parts) != 4 {
+	if len(parts) != 5 {
 		w.WriteHeader(400)
 		return
 	}
 
-	parts = strings.SplitN(parts[3], "_", 2)
-	if len(parts) != 2 {
-		w.WriteHeader(400)
-		return
-	}
-
-	mediaID := parts[0]
-	namePart := parts[1]
+	mediaID := parts[3]
+	namePart := parts[4]
 	encodeID := strings.TrimSuffix(namePart, ".mp4")
 
 	manifest, statusCode, err := m.store.GetManifest(mediaID)
@@ -108,7 +102,7 @@ func (m *Mapper) MultiURLMapper(w http.ResponseWriter, r* http.Request) {
 				Clip: []ClipResponse{
 					ClipResponse{
 						Type: "source",
-						Path: fmt.Sprintf("http://127.0.0.1:8080/media/%s/%s", mediaID, namePart),
+						Path: fmt.Sprintf("/media/%s/%s", mediaID, namePart),
 					},
 				},
 			},
