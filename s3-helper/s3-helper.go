@@ -41,7 +41,7 @@ type Config struct {
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
 
-	Map      mapper.Config `yaml:"map" optional:"true"`
+	Map mapper.Config `yaml:"map" optional:"true"`
 
 	StatsdAddr        string `yaml:"statsd_addr"`
 	StatsdEnvironment string `yaml:"statsd_env"`
@@ -118,7 +118,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		return
 	}
-	
+
 	path := strings.TrimPrefix(r.URL.Path, mediaRoot)
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
@@ -181,7 +181,6 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 }
 
-
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -212,8 +211,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.Handle(mediaRoot + "/", http.HandlerFunc(forwardToS3))
-	mux.Handle("/single/", http.HandlerFunc(m.MultiURLMapper))
+	mux.Handle(mediaRoot+"/", http.HandlerFunc(forwardToS3))
+	mux.Handle("/map/", http.HandlerFunc(m.MapManifest))
 	mux.Handle("/", http.HandlerFunc(notFoundHandler))
 
 	if *pprofFlag {
