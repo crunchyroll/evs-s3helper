@@ -1,15 +1,18 @@
 package mapper
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/crunchyroll/evs-common/logging"
+	"github.com/crunchyroll/evs-playback-api/cache"
 	"github.com/crunchyroll/evs-playback-api/objects"
 	"github.com/crunchyroll/evs-playback-api/schema"
-	"go.codemobs.com/vps/common/logging"
 )
 
 // serverName has a header value to add
@@ -18,6 +21,7 @@ const serverName = "Ellation Video Playback Mapping Service"
 // Config holds our config information
 type Config struct {
 	Store objects.Config `yaml:"manifests" optional:"true"`
+	Cache cache.Config   `yaml:"config" optional:"true"`
 }
 
 // Mapper holds instance state
@@ -25,6 +29,16 @@ type Mapper struct {
 	config  *Config
 	store   objects.ObjectStore
 	statter statsd.Statter
+	cache   *cache.Cache
+}
+
+// CachedResponse holds cached responses for a given video ID
+type CachedResponses struct {
+	videoID  cache.Key
+	lock     sync.Mutex
+	manifest *schema.Manifest
+	etag     string
+	responses map[string]*[]byte
 }
 
 // Response contains a mapping response
@@ -52,11 +66,14 @@ func NewMapper(config *Config, statter statsd.Statter) *Mapper {
 		logging.Panicf("Unable to construct object store %q: %v", config.Store.StoreName, err)
 	}
 
-	return &Mapper{
+	mapper := &Mapper{
 		config:  config,
 		store:   store,
 		statter: statter,
 	}
+
+	mapper.cache = cache.NewCache(&config.Cache, mapper, statter)
+	return mapper
 }
 
 // MapManifest maps the manifest requested
@@ -122,6 +139,7 @@ func (m *Mapper) MapManifest(w http.ResponseWriter, r *http.Request) {
 var languageMap = map[string]string{
 	"koKR":    "kor",
 	"jpJP":    "jpn",
+	"jaJP":    "jpn",
 	"enUS":    "eng",
 	"en-US":   "eng",
 	"en":      "eng",
@@ -143,6 +161,7 @@ var languageMap = map[string]string{
 var labelMap = map[string]string{
 	"koKR":    "Korean",
 	"jpJP":    "Japanese",
+	"jaJP":    "Japanese",
 	"enUS":    "English",
 	"en-US":   "English",
 	"en":      "English",
@@ -170,12 +189,14 @@ func getLanguage(lang string) (lang3, label string) {
 	var ok bool
 	if lang3, ok = languageMap[lang]; !ok {
 		logging.Infof("No language code for %q", lang)
-		lang3 = "ZZZ"
+		lang3 = ""
+		label = ""
 	}
 
 	if label, ok = labelMap[lang]; !ok {
 		logging.Infof("No language label for %q", lang)
-		label = "Unknown"
+		lang3 = ""
+		label = ""
 	}
 	return
 }
@@ -191,19 +212,30 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 
 	mediaID := strings.TrimSuffix(parts[3], ".mp4")
 
-	manifest, statusCode, err := m.store.GetManifest(mediaID)
+	cached, err := m.cache.Get(cache.Key(mediaID))
 	if err != nil {
 		logging.Errorf("Unable to obtain manifest for media %q: %v", mediaID, err)
-		w.WriteHeader(statusCode)
+		w.WriteHeader(err.(*cache.CacheError).StatusCode())
 		return
 	}
 
-	var man schema.Manifest
-	err = json.Unmarshal([]byte(manifest), &man)
-	if err != nil {
-		logging.Errorf("Unable to parse manifest for media ID %q: %v", mediaID, err)
-		w.WriteHeader(503)
+	// Use cached response if available
+	c := cached.(*CachedResponses)
+	if response, ok := c.responses[r.URL.Path]; ok {
+		w.WriteHeader(200)
+		_, _ = w.Write(*response)
+		m.cache.TrackHit()
 		return
+	}
+
+	m.cache.TrackMiss()
+
+	man := c.manifest
+
+	var alang, label string
+	logging.Infof("Alang: %q", man.Alang)
+	if man.Alang != "" {
+		alang, label = getLanguage(man.Alang)
 	}
 
 	var response = Response{
@@ -212,8 +244,17 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 
 	for i := range man.Encodes {
 		encode := &man.Encodes[i]
+
+		eAlang := alang
+		eLabel := label
+		if encode.Alang != "" {
+			eAlang, eLabel = getLanguage(encode.Alang)
+		}
+
 		if encode.Hlang == "" && encode.Quality != "trailer" {
 			response.Sequences = append(response.Sequences, SequenceItemResponse{
+				Language: eAlang,
+				Label:    eLabel,
 				Clip: []ClipResponse{
 					ClipResponse{
 						Type: "source",
@@ -252,5 +293,49 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 
 	_, _ = w.Write(body)
 
+	c.responses[r.URL.Path] = &body
+
 	logging.Debugf(string(body))
+}
+
+// Populate is used by the cache to backfill - fetch manifest and return it as a Cacheable.  Errors
+// are always cache.CacheError.
+func (m Mapper) Populate(videoID cache.Key) (cache.Cacheable, error) {
+    body, code, err := m.store.GetManifest(string(videoID))
+    if err != nil || code < 200 || code >= 300 {
+        if err == nil {
+            err = fmt.Errorf("HTTP error fetching manifest")
+        }
+        return nil, cache.NewCacheError(err, code)
+    }
+
+    bodyBytes := []byte(body)
+    hash := md5.Sum(bodyBytes)
+    etag := fmt.Sprintf("%x", hash)
+
+    response := &CachedResponses{
+		videoID:   videoID,
+		etag:      etag,
+		responses: make(map[string]*[]byte),
+    }
+
+    var m3 schema.Manifest
+    if err := json.Unmarshal(bodyBytes, &m3); err != nil {
+        logging.Errorf("unable to unmarshal video manifest %s: %v", videoID, err)
+        return nil, cache.NewCacheError(fmt.Errorf("Unable to unmarshal manifest for %s: %v", videoID, err), 0)
+    }
+
+    response.manifest = &m3
+    return response, nil
+}
+
+// ETag is used by cache to obtain ETag for manifest
+func (r CachedResponses) ETag() string {
+    return r.etag
+}
+
+// Evicted is called when a cachedManifest is thrown out of the cache.
+// Called with the entire cache and/or LRU list locked down so don't do much here.
+func (r CachedResponses) Evicted() {
+    return
 }
