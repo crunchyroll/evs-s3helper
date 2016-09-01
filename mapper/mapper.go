@@ -86,25 +86,25 @@ func (m *Mapper) MapManifest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Example incoming path:
-	//    single   - /map/evs/w5e0x2kuzklnklp/2414279.mp4
-	//    adaptive - /map/evs/w5e0x2kuzklnklp.mp4
+	//    single   - /map/evs/assets/w5e0x2kuzklnklp/2414279.mp4
+	//    adaptive - /map/evs/assets/w5e0x2kuzklnklp
 
 	logging.Debugf("MapManifest: request for URL: %s", r.URL.String())
 
 	parts := strings.Split(r.URL.String(), "/")
 
-	if len(parts) == 4 {
+	if len(parts) == 5 {
 		m.MapManifestAdaptive(w, r)
 		return
 	}
 
-	if len(parts) != 5 {
+	if len(parts) != 6 {
 		w.WriteHeader(400)
 		return
 	}
 
-	mediaID := parts[3]
-	namePart := parts[4]
+	mediaID := parts[4]
+	namePart := parts[5]
 	encodeID := strings.TrimSuffix(namePart, ".mp4")
 
 	var response = Response{
@@ -203,14 +203,14 @@ func getLanguage(lang string) (lang3, label string) {
 
 // MultiMap maps a single item in a multi-url set to a sequence
 func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
-	parts := strings.SplitN(r.URL.String(), "/", 4)
+	parts := strings.SplitN(r.URL.String(), "/", 5)
 
-	if len(parts) != 4 {
+	if len(parts) != 5 {
 		w.WriteHeader(400)
 		return
 	}
 
-	mediaID := strings.TrimSuffix(parts[3], ".mp4")
+	mediaID := strings.TrimSuffix(parts[4], ".mp4")
 
 	cached, err := m.cache.Get(cache.Key(mediaID))
 	if err != nil {
