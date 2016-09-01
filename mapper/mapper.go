@@ -34,10 +34,10 @@ type Mapper struct {
 
 // CachedResponse holds cached responses for a given video ID
 type CachedResponses struct {
-	videoID  cache.Key
-	lock     sync.Mutex
-	manifest *schema.Manifest
-	etag     string
+	videoID   cache.Key
+	lock      sync.Mutex
+	manifest  *schema.Manifest
+	etag      string
 	responses map[string]*[]byte
 }
 
@@ -301,41 +301,41 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 // Populate is used by the cache to backfill - fetch manifest and return it as a Cacheable.  Errors
 // are always cache.CacheError.
 func (m Mapper) Populate(videoID cache.Key) (cache.Cacheable, error) {
-    body, code, err := m.store.GetManifest(string(videoID))
-    if err != nil || code < 200 || code >= 300 {
-        if err == nil {
-            err = fmt.Errorf("HTTP error fetching manifest")
-        }
-        return nil, cache.NewCacheError(err, code)
-    }
+	body, code, err := m.store.GetManifest(string(videoID))
+	if err != nil || code < 200 || code >= 300 {
+		if err == nil {
+			err = fmt.Errorf("HTTP error fetching manifest")
+		}
+		return nil, cache.NewCacheError(err, code)
+	}
 
-    bodyBytes := []byte(body)
-    hash := md5.Sum(bodyBytes)
-    etag := fmt.Sprintf("%x", hash)
+	bodyBytes := []byte(body)
+	hash := md5.Sum(bodyBytes)
+	etag := fmt.Sprintf("%x", hash)
 
-    response := &CachedResponses{
+	response := &CachedResponses{
 		videoID:   videoID,
 		etag:      etag,
 		responses: make(map[string]*[]byte),
-    }
+	}
 
-    var m3 schema.Manifest
-    if err := json.Unmarshal(bodyBytes, &m3); err != nil {
-        logging.Errorf("unable to unmarshal video manifest %s: %v", videoID, err)
-        return nil, cache.NewCacheError(fmt.Errorf("Unable to unmarshal manifest for %s: %v", videoID, err), 0)
-    }
+	var m3 schema.Manifest
+	if err := json.Unmarshal(bodyBytes, &m3); err != nil {
+		logging.Errorf("unable to unmarshal video manifest %s: %v", videoID, err)
+		return nil, cache.NewCacheError(fmt.Errorf("Unable to unmarshal manifest for %s: %v", videoID, err), 0)
+	}
 
-    response.manifest = &m3
-    return response, nil
+	response.manifest = &m3
+	return response, nil
 }
 
 // ETag is used by cache to obtain ETag for manifest
 func (r CachedResponses) ETag() string {
-    return r.etag
+	return r.etag
 }
 
 // Evicted is called when a cachedManifest is thrown out of the cache.
 // Called with the entire cache and/or LRU list locked down so don't do much here.
 func (r CachedResponses) Evicted() {
-    return
+	return
 }
