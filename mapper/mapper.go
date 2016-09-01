@@ -230,6 +230,8 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 
 	m.cache.TrackMiss()
 
+	logging.Debugf("Cache miss - populating")
+
 	man := c.manifest
 
 	var alang, label string

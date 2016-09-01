@@ -43,7 +43,7 @@ type Config struct {
 
 	Map mapper.Config `yaml:"map" optional:"true"`
 
-	StatsdAddr        string `yaml:"statsd_addr"`
+	StatsdAddr        string `yaml:"statsd_addr" optional:"true"`
 	StatsdEnvironment string `yaml:"statsd_env"`
 }
 

@@ -5,7 +5,7 @@
     s3_region:     us-west-2
     s3_bucket:     evs-prod
     concurrency:   0
-    statsd_addr:   "127.0.0.1:8125"
+    statsd_addr:   ""
     statsd_env:    dev
     map:
         manifests:
