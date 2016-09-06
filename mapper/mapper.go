@@ -20,8 +20,9 @@ const serverName = "Ellation Video Playback Mapping Service"
 
 // Config holds our config information
 type Config struct {
-	Store objects.Config `yaml:"manifests" optional:"true"`
-	Cache cache.Config   `yaml:"config" optional:"true"`
+	Store         objects.Config `yaml:"manifests" optional:"true"`
+	Cache         cache.Config   `yaml:"config" optional:"true"`
+	CaptionServer string         `yaml:"caption_server" optional:"true"`
 }
 
 // Mapper holds instance state
@@ -156,6 +157,7 @@ var languageMap = map[string]string{
 	"zh-Hans": "chi",
 	"zh-Hant": "chi",
 	"zhHK":    "chi",
+	"arME":    "ara",
 }
 
 var labelMap = map[string]string{
@@ -178,6 +180,7 @@ var labelMap = map[string]string{
 	"zh-Hans": "Chinese",
 	"zh-Hant": "Chinese",
 	"zhHK":    "Chinese",
+	"arME":    "Arabic",
 }
 
 func getLanguage(lang string) (lang3, label string) {
@@ -235,7 +238,6 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 	man := c.manifest
 
 	var alang, label string
-	logging.Infof("Alang: %q", man.Alang)
 	if man.Alang != "" {
 		alang, label = getLanguage(man.Alang)
 	}
@@ -269,15 +271,16 @@ func (m *Mapper) MapManifestAdaptive(w http.ResponseWriter, r *http.Request) {
 
 	for i := range man.Subtitles {
 		subtitle := &man.Subtitles[i]
-		if strings.HasSuffix(subtitle.File, ".vtt") {
+		if strings.HasSuffix(subtitle.File, ".txt") {
 			lang, label := getLanguage(subtitle.Language)
+			dynamicAsset := fmt.Sprintf("%s.vtt", strings.TrimSuffix(subtitle.File, ".txt"))
 			response.Sequences = append(response.Sequences, SequenceItemResponse{
 				Language: lang,
 				Label:    label,
 				Clip: []ClipResponse{
 					ClipResponse{
 						Type: "source",
-						Path: fmt.Sprintf("/media/%s/%s", mediaID, subtitle.File),
+						Path: fmt.Sprintf("/caption/%s/%s", mediaID, dynamicAsset),
 					},
 				},
 			})
