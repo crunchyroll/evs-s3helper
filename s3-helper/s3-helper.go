@@ -18,11 +18,14 @@ import (
 	"time"
 
 	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/crunchyroll/evs-common/config"
+	"github.com/crunchyroll/evs-common/logging"
+	"github.com/crunchyroll/evs-common/util"
+	"github.com/crunchyroll/evs-s3helper/mapper"
 	"github.com/crunchyroll/go-aws-auth"
-	"go.codemobs.com/vps/common/config"
-	"go.codemobs.com/vps/common/logging"
-	"go.codemobs.com/vps/common/util"
 )
+
+const mediaRoot = "/media"
 
 // Default config file
 const configFileDefault = "/mob/etc/s3-helper.yml"
@@ -38,7 +41,9 @@ type Config struct {
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
 
-	StatsdAddr        string `yaml:"statsd_addr"`
+	Map mapper.Config `yaml:"map" optional:"true"`
+
+	StatsdAddr        string `yaml:"statsd_addr" optional:"true"`
 	StatsdEnvironment string `yaml:"statsd_env"`
 }
 
@@ -105,14 +110,16 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logging.Debugf("request for media object: %s", r.URL.String())
+
 	// Make sure that RemoteAddr is 127.0.0.1 so it comes off a local proxy
 	a := strings.SplitN(r.RemoteAddr, ":", 2)
 	if len(a) != 2 || a[0] != "127.0.0.1" {
 		w.WriteHeader(403)
 		return
 	}
-	
-	path := r.URL.Path
+
+	path := strings.TrimPrefix(r.URL.Path, mediaRoot)
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
@@ -169,6 +176,11 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	logging.Debugf("404: not found: %s", r.URL.String())
+	w.WriteHeader(404)
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -195,9 +207,13 @@ func main() {
 	statter.Inc("start", 1, 1)
 	defer statter.Inc("stop", 1, 1)
 
+	m := mapper.NewMapper(&conf.Map, statter)
+
 	mux := http.NewServeMux()
 
-	mux.Handle("/", http.HandlerFunc(forwardToS3))
+	mux.Handle(mediaRoot+"/", http.HandlerFunc(forwardToS3))
+	mux.Handle("/map/", http.HandlerFunc(m.MapManifest))
+	mux.Handle("/", http.HandlerFunc(notFoundHandler))
 
 	if *pprofFlag {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
