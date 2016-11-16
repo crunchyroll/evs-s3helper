@@ -1,0 +1,18 @@
+hash: 94de64384d01714c98bb6a2fd8a8b1ec95cc937851d9f9470159d3c9623aa241
+updated: 2016-11-16T00:29:59.616116592Z
+imports:
+- name: github.com/cactus/go-statsd-client
+  version: d8eabe07bc70ff9ba6a56836cde99d1ea3d005f7
+  subpackages:
+  - statsd
+- name: github.com/crunchyroll/evs-common
+  version: e5794ad16dfdf4dbe90ffa5aedb17eff888b8aec
+  subpackages:
+  - config
+  - logging
+  - util
+- name: github.com/crunchyroll/go-aws-auth
+  version: 6d1794bd97a6eb9c5dd480ed627665e8d205fa6d
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+testImports: []

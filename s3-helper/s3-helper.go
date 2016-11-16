@@ -18,10 +18,10 @@ import (
 	"time"
 
 	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/crunchyroll/evs-common/config"
+	"github.com/crunchyroll/evs-common/logging"
+	"github.com/crunchyroll/evs-common/util"
 	"github.com/crunchyroll/go-aws-auth"
-	"go.codemobs.com/vps/common/config"
-	"go.codemobs.com/vps/common/logging"
-	"go.codemobs.com/vps/common/util"
 )
 
 // Default config file

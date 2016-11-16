@@ -1,0 +1,11 @@
+package: github.com/crunchyroll/evs-s3helper
+import:
+- package: github.com/cactus/go-statsd-client
+  subpackages:
+  - statsd
+- package: github.com/crunchyroll/evs-common
+  subpackages:
+  - config
+  - logging
+  - util
+- package: github.com/crunchyroll/go-aws-auth
