@@ -4,6 +4,7 @@ import:
   subpackages:
   - statsd
 - package: github.com/crunchyroll/evs-common
+  repo: ssh://git@github.com/crunchyroll/evs-common.git
   subpackages:
   - config
   - logging
