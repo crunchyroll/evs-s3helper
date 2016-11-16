@@ -1,18 +1,29 @@
-hash: 94de64384d01714c98bb6a2fd8a8b1ec95cc937851d9f9470159d3c9623aa241
-updated: 2016-11-16T00:29:59.616116592Z
+hash: 499ec6a72929f88227bf75d7ca87cc0abac4616067e06d4cd2d2371e1942bd6a
+updated: 2016-11-16T15:40:56.890208285Z
 imports:
+- name: github.com/benthor/clustersql
+  version: 0784d8c2b511a0c3a8a5688aa100bc6669d72a89
 - name: github.com/cactus/go-statsd-client
   version: d8eabe07bc70ff9ba6a56836cde99d1ea3d005f7
   subpackages:
   - statsd
 - name: github.com/crunchyroll/evs-common
   version: e5794ad16dfdf4dbe90ffa5aedb17eff888b8aec
+  repo: ssh://git@github.com/crunchyroll/evs-common.git
   subpackages:
   - config
   - logging
   - util
 - name: github.com/crunchyroll/go-aws-auth
   version: 6d1794bd97a6eb9c5dd480ed627665e8d205fa6d
+- name: github.com/go-sql-driver/mysql
+  version: 665b83488b90b902ce0a305ef6652e599771cdf9
+- name: github.com/jessevdk/go-flags
+  version: 8bc97d602c3bfeb5fc6fc9b5a9c898f245495637
+- name: github.com/ncw/swift
+  version: b964f2ca856aac39885e258ad25aec08d5f64ee6
+- name: github.com/xuyu/ipfilter
+  version: adf56c1fa91ad789d3c67028025f6c576ccea9b3
 - name: gopkg.in/yaml.v2
   version: a5b47d31c556af34a302ce5d659e6fea44d90de0
-testImports: []
+devImports: []
