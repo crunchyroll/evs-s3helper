@@ -39,9 +39,9 @@ type Config struct {
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
 
-	NewRelic          newrelic.Config      `yaml:"newrelic" optional:"true"`
-	StatsdAddr        string `yaml:"statsd_addr"`
-	StatsdEnvironment string `yaml:"statsd_env"`
+	NewRelic          newrelic.Config `yaml:"newrelic" optional:"true"`
+	StatsdAddr        string          `yaml:"statsd_addr"`
+	StatsdEnvironment string          `yaml:"statsd_env"`
 }
 
 const defaultConfValues = `
@@ -116,7 +116,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		return
 	}
-	
+
 	path := r.URL.Path
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
