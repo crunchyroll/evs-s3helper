@@ -4,6 +4,9 @@
         level: debug
     s3_region:     us-west-2
     s3_bucket:     evs-prod
+    newrelic:
+        name:     ""
+        license:  ""
     concurrency:   0
     statsd_addr:   "127.0.0.1:8125"
     statsd_env:    dev

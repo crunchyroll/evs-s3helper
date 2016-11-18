@@ -9,3 +9,6 @@ import:
   - logging
   - util
 - package: github.com/crunchyroll/go-aws-auth
+- package: github.com/newrelic/go-agent
+  version: ~1.5.0
+- package: github.com/crunchyroll/evs-playback-api
