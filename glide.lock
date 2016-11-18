@@ -1,5 +1,5 @@
-hash: 94de64384d01714c98bb6a2fd8a8b1ec95cc937851d9f9470159d3c9623aa241
-updated: 2016-11-16T00:29:59.616116592Z
+hash: fe2e61736eac91677836a7c034964d0f42c78dcfac4f5d6da07806b468161194
+updated: 2016-11-18T20:47:33.369963548Z
 imports:
 - name: github.com/cactus/go-statsd-client
   version: d8eabe07bc70ff9ba6a56836cde99d1ea3d005f7
@@ -11,8 +11,20 @@ imports:
   - config
   - logging
   - util
+- name: github.com/crunchyroll/evs-playback-api
+  version: ab76a44a661eefe32f82b2ebfb3a862b27ed3e4f
+  subpackages:
+  - newrelic
 - name: github.com/crunchyroll/go-aws-auth
   version: 6d1794bd97a6eb9c5dd480ed627665e8d205fa6d
+- name: github.com/newrelic/go-agent
+  version: 7d12ae2201fc160e486197614a6f65afcf3f8170
+  subpackages:
+  - internal
+  - internal/logger
+  - internal/utilization
+  - internal/jsonx
+  - internal/sysinfo
 - name: gopkg.in/yaml.v2
   version: a5b47d31c556af34a302ce5d659e6fea44d90de0
 testImports: []

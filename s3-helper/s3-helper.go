@@ -21,6 +21,7 @@ import (
 	"github.com/crunchyroll/evs-common/config"
 	"github.com/crunchyroll/evs-common/logging"
 	"github.com/crunchyroll/evs-common/util"
+	"github.com/crunchyroll/evs-playback-api/newrelic"
 	"github.com/crunchyroll/go-aws-auth"
 )
 
@@ -38,6 +39,7 @@ type Config struct {
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
 
+	NewRelic          newrelic.Config      `yaml:"newrelic" optional:"true"`
 	StatsdAddr        string `yaml:"statsd_addr"`
 	StatsdEnvironment string `yaml:"statsd_env"`
 }
@@ -47,6 +49,9 @@ const defaultConfValues = `
     logging:
         ident: "s3-helper"
         level: "info"
+    newrelic:
+        name:    ""
+        license: ""
     concurrency:   0
     statsd_addr:   "127.0.0.1:8125"
     statsd_env:    dev
@@ -195,9 +200,10 @@ func main() {
 	statter.Inc("start", 1, 1)
 	defer statter.Inc("stop", 1, 1)
 
+	nr := newrelic.NewNewRelic(&conf.NewRelic)
 	mux := http.NewServeMux()
 
-	mux.Handle("/", http.HandlerFunc(forwardToS3))
+	mux.Handle(nr.MonitorHandler("/", http.HandlerFunc(forwardToS3)))
 
 	if *pprofFlag {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
