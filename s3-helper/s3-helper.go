@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -35,6 +36,9 @@ type Config struct {
 
 	Concurrency int `optional:"true"`
 
+	S3Timeout time.Duration `yaml:"s3_timeout"`
+	S3Retries int           `yaml:"s3_retries"`
+
 	S3Region string `yaml:"s3_region"`
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
@@ -52,6 +56,8 @@ const defaultConfValues = `
     newrelic:
         name:    ""
         license: ""
+    s3_timeout:  5s
+    s3_retries:  5
     concurrency:   0
     statsd_addr:   "127.0.0.1:8125"
     statsd_env:    dev
@@ -137,12 +143,29 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		r2.Header.Set("Range", byterange)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(r2)
-	if err != nil {
-		logging.Errorf("S3 error: %v", err)
-		w.WriteHeader(500)
-		return
+	nretries := 0
+
+	var resp *http.Response
+
+	for {
+		client := &http.Client{Timeout: conf.S3Timeout}
+		resp, err = client.Do(r2)
+		if err == nil {
+			break
+		}
+
+		// Bail out on non-timeout error, or too many timeouts.
+		netErr, ok := err.(net.Error)
+		isTimeout := ok && netErr.Timeout()
+
+		if nretries >= conf.S3Retries || !isTimeout {
+			logging.Errorf("S3 error: %v", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		logging.Infof("S3 timeout, retrying: %s", s3url)
+		nretries++
 	}
 
 	defer resp.Body.Close()
