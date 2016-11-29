@@ -154,19 +154,18 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// See if it's a client timeout and if so retry
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			if nretries < conf.S3Retries {
-				nretries++
-				logging.Infof("S3 timeout, retrying: %s", s3url)
-				continue
-			}
-			// If retries are exhausted handle timeout as error
+		// Bail out on non-timeout error, or too many timeouts.
+		netErr, ok := err.(net.Error)
+		isTimeout := ok && netErr.Timeout()
+
+		if nretries >= conf.S3Retries || !isTimeout {
+			logging.Errorf("S3 error: %v", err)
+			w.WriteHeader(500)
+			return
 		}
 
-		logging.Errorf("S3 error: %v", err)
-		w.WriteHeader(500)
-		return
+		logging.Infof("S3 timeout, retrying: %s", s3url)
+		nretries++
 	}
 
 	defer resp.Body.Close()
