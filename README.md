@@ -22,7 +22,7 @@ Clone this repo, then:
 
 Create a config in `s3-helper.yml`.  Start the service with:
 
-`./s3-helper -config s3-helper.yml`
+`$ ./s3-helper -config s3-helper.yml`
 
 Run "s3-helper -h" which list possible flags.
 
