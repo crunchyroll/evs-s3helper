@@ -12,9 +12,11 @@ also remove the vendoring from this repo.
 
 Clone this repo, then:
 
-`cd s3-helper`
-`go get`
-`go build`
+`$ cd s3-helper`
+
+`$ go get`
+
+`$ go build`
 
 ## Arguments
 
