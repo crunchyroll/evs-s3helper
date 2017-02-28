@@ -4,10 +4,25 @@ s3helper signs S3 object requests using instance credentials.  It only accepts c
 and only accepts GET and HEAD methods.  It provides no crossdomain.xml (though this can be put in the S3
 bucket).
 
+## Building s3-helper
+
+The glide vendoring is used by our build system which relies on https URLs and API keys to access private
+repos.  Sometime after making this public we will drop the use of glide for this, at which point we will
+also remove the vendoring from this repo.
+
+Clone this repo, then:
+
+`cd s3-helper`
+`go get`
+`go build`
 
 ## Arguments
 
-Run "s3-helper -h" to see a list of arguments.
+Create a config in `s3-helper.yml`.  Start the service with:
+
+`./s3-helper -config s3-helper.yml`
+
+Run "s3-helper -h" which list possible flags.
 
 
 ## Configuration
