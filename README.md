@@ -4,7 +4,7 @@ s3helper signs S3 object requests using instance credentials.  It only accepts c
 and only accepts GET and HEAD methods.  It provides no crossdomain.xml (though this can be put in the S3
 bucket).
 
-## Building s3-helper
+## Building
 
 The glide vendoring is used by our build system which relies on https URLs and API keys to access private
 repos.  Sometime after making this public we will drop the use of glide for this, at which point we will
