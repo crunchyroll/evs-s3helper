@@ -75,7 +75,14 @@ about S3, credentials, or magic headers.
 ## Statsd
 
 s3helper outputs stats for object retrieval times and request counts to the configured statsd/collectd
-endpoint.
+endpoint.  If the address and env are set to "" (the default) no stats are emitted.
+
+
+## New Relic
+
+Basic request metrics are forwarded to New Relic if either the license or name is non-empty.  (Default is
+"", meaning nothing is forwarded.)  Requires running the nr-agent on the host and an NR account.  It's what
+we mainly rely on here at Ellation.
 
 
 ## License
