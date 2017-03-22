@@ -22,12 +22,12 @@ import (
 	"github.com/crunchyroll/evs-common/config"
 	"github.com/crunchyroll/evs-common/logging"
 	"github.com/crunchyroll/evs-common/util"
-	"github.com/crunchyroll/evs-playback-api/newrelic"
+	"github.com/crunchyroll/evs-common/newrelic"
 	"github.com/crunchyroll/go-aws-auth"
 )
 
 // Default config file
-const configFileDefault = "/mob/etc/s3-helper.yml"
+const configFileDefault = "/etc/s3-helper.yml"
 
 // Config holds the global config
 type Config struct {
@@ -59,8 +59,8 @@ const defaultConfValues = `
     s3_timeout:  5s
     s3_retries:  5
     concurrency:   0
-    statsd_addr:   "127.0.0.1:8125"
-    statsd_env:    dev
+    statsd_addr:   ""
+    statsd_env:    ""
 `
 
 var conf Config
@@ -68,7 +68,7 @@ var progName string
 var statRate float32 = 1
 var statter statsd.Statter
 
-// List of swift headers to forward in response
+// List of headers to forward in response
 var headerForward = map[string]bool{
 	"Date":           true,
 	"Content-Length": true,
@@ -78,7 +78,7 @@ var headerForward = map[string]bool{
 	"ETag":           true,
 }
 
-const serverName = "Ellation VOD Server"
+const serverName = "VOD S3 Helper"
 
 // Initialize process runtime
 func initRuntime() {
@@ -111,6 +111,8 @@ func initStatsd() {
 }
 
 func forwardToS3(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Server", serverName)
+
 	if r.Method != "GET" && r.Method != "HEAD" {
 		w.WriteHeader(405)
 		return
@@ -169,8 +171,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer resp.Body.Close()
-
-	w.Header().Set("Server", serverName)
 
 	header := resp.Header
 	for name, flag := range headerForward {
