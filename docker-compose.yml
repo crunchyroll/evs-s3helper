@@ -1,0 +1,72 @@
+version: '3.4'
+
+services:
+
+#  s3helper:
+#    build: .
+#    ports:
+#      - "8001:8001"
+#    command: [
+#      "go",
+#      "run",
+#      "./s3-helper/s3-helper.go",
+#      "-config=${APPLICATION_CONFIG}",
+#    ]
+#    volumes:
+#      - ~/.ssh:/root/.ssh
+#      - .:/go/src/github.com/crunchyroll/evs-s3helper
+#    networks:
+#      - frontend
+#      - backend
+#    env_file:
+#      - .aws
+  s3helper:
+    build:
+      context: .
+      target: dev-env
+    ports:
+      - "8001:8001"
+    command: [
+      "go",
+      "run",
+      "./s3-helper/s3-helper.go",
+      "-config=${APPLICATION_CONFIG}",
+    ]
+    volumes:
+      - ~/.ssh:/root/.ssh
+      - .:/go/src/github.com/crunchyroll/evs-s3helper
+    networks:
+      - frontend
+      - backend
+    env_file:
+      - .aws
+#  nginx:
+#    image: nytimes/nginx-vod-module
+#    ports:
+#      - "8081:80"
+#    volumes:
+#      - ./config/nginx.conf:/usr/local/nginx/conf/nginx.conf
+#    networks:
+#      - frontend
+#      - backend
+#      - aws_frontend
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
+    ports:
+      - "8081:80"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - frontend
+      - backend
+      - aws_frontend
+
+networks:
+  frontend:
+    driver: "bridge"
+  backend:
+    driver: "bridge"
+  aws_frontend:
+    external: true
