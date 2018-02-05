@@ -14,7 +14,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
-	//"strings"
+	"strings"
 	"syscall"
 	"time"
 
@@ -119,11 +119,11 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make sure that RemoteAddr is 127.0.0.1 so it comes off a local proxy
-	//a := strings.SplitN(r.RemoteAddr, ":", 2)
-	//if len(a) != 2 || a[0] != "127.0.0.1" {
-	//	w.WriteHeader(403)
-	//	return
-	//}
+	a := strings.SplitN(r.RemoteAddr, ":", 2)
+	if len(a) != 2 || a[0] != "127.0.0.1" {
+		w.WriteHeader(403)
+		return
+	}
 
 	path := r.URL.Path
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
