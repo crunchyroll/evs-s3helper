@@ -32,12 +32,9 @@ services:
     networks:
       - frontend
       - backend
-      - aws_frontend
 
 networks:
   frontend:
     driver: "bridge"
   backend:
     driver: "bridge"
-  aws_frontend:
-    external: true

@@ -1,4 +1,4 @@
 .aws
 .env
 dist/
-config/
+config/*.yml
