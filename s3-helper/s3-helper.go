@@ -112,7 +112,7 @@ func initStatsd() {
 
 func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", serverName)
-
+	logging.Infof(fmt.Sprintf("S3Helper: received a request for url(host):%s, url(path): %s", r.Host, r.URL.Path))
 	if r.Method != "GET" && r.Method != "HEAD" {
 		w.WriteHeader(405)
 		return
@@ -138,7 +138,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 
 	url := r2.URL.String()
 
-	logging.Debugf("Forwarding request to %s", url)
+	logging.Infof(fmt.Sprintf("S3Helper: Forwarding request to %s.", url))
 
 	r2.Header.Set("Host", r2.URL.Host)
 	if byterange := r.Header.Get("Range"); byterange != "" {
@@ -166,7 +166,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logging.Infof("S3 timeout, retrying: %s", s3url)
+		logging.Errorf("S3 timeout, retrying: %s", s3url)
 		nretries++
 	}
 
