@@ -43,6 +43,7 @@ type Config struct {
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
 
+	// Keep the NewRelic as optional, so we don't remove it from ellation_formation
 	NewRelic          newrelic.Config `yaml:"newrelic" optional:"true"`
 	StatsdAddr        string          `yaml:"statsd_addr"`
 	StatsdEnvironment string          `yaml:"statsd_env"`
@@ -53,9 +54,6 @@ const defaultConfValues = `
     logging:
         ident: "s3-helper"
         level: "info"
-    newrelic:
-        name:    ""
-        license: ""
     s3_timeout:  5s
     s3_retries:  5
     concurrency:   0
@@ -223,10 +221,9 @@ func main() {
 	statter.Inc("start", 1, 1)
 	defer statter.Inc("stop", 1, 1)
 
-	nr := newrelic.NewNewRelic(&conf.NewRelic)
 	mux := http.NewServeMux()
 
-	mux.Handle(nr.MonitorHandler("/", http.HandlerFunc(forwardToS3)))
+	mux.Handle("/", http.HandlerFunc(forwardToS3))
 
 	if *pprofFlag {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
