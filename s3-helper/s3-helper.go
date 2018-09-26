@@ -54,6 +54,9 @@ const defaultConfValues = `
     logging:
         ident: "s3-helper"
         level: "info"
+    newrelic:
+        name:    ""
+        license: ""
     s3_timeout:  5s
     s3_retries:  5
     concurrency:   0
@@ -221,8 +224,10 @@ func main() {
 	statter.Inc("start", 1, 1)
 	defer statter.Inc("stop", 1, 1)
 
+	// nr := newrelic.NewNewRelic(&conf.NewRelic)
 	mux := http.NewServeMux()
 
+	// mux.Handle(nr.MonitorHandler("/", http.HandlerFunc(forwardToS3)))
 	mux.Handle("/", http.HandlerFunc(forwardToS3))
 
 	if *pprofFlag {
