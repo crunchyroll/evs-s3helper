@@ -150,15 +150,18 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 
 	var resp *http.Response
 
-        client := &http.Client{
-                Transport: &http.Transport{
-                Proxy: http.ProxyFromEnvironment,
-                DialContext: (&net.Dialer{
-                    Timeout:   conf.S3Timeout,
-                    KeepAlive: 1 * time.Second,
-                }).DialContext,
-                IdleConnTimeout:       conf.S3Timeout,
-        }}
+	// setup client outside of for loop since we don't
+	// need to define it multiple times and failures
+	// shouldn't need a new client
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   conf.S3Timeout,
+				KeepAlive: 1 * time.Second,
+			}).DialContext,
+			IdleConnTimeout: conf.S3Timeout,
+		}}
 
 	for {
 		resp, err = client.Do(r2)
