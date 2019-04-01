@@ -154,12 +154,10 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
                 Transport: &http.Transport{
                 Proxy: http.ProxyFromEnvironment,
                 DialContext: (&net.Dialer{
-                    Timeout:   conf.S3Timeout * time.Second,
+                    Timeout:   conf.S3Timeout,
                     KeepAlive: 1 * time.Second,
                 }).DialContext,
-                IdleConnTimeout:       conf.S3Timeout * time.Second,
-                TLSHandshakeTimeout:   conf.S3Timeout * time.Second,
-                ExpectContinueTimeout: conf.S3Timeout * time.Second,
+                IdleConnTimeout:       conf.S3Timeout,
         }}
 
 	for {
