@@ -151,7 +151,19 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	var resp *http.Response
 
 	for {
-		client := &http.Client{Timeout: conf.S3Timeout}
+		client := &http.Client{
+                        Transport: &http.Transport{
+                        Proxy: http.ProxyFromEnvironment,
+                        DialContext: (&net.Dialer{
+                            Timeout:   conf.S3Timeout * time.Second,
+                            KeepAlive: 1 * time.Second,
+                        }).DialContext,
+                        MaxIdleConns:          100,
+                        IdleConnTimeout:       conf.S3Timeout * time.Second,
+                        MaxIdleConnsPerHost:   1,
+                        TLSHandshakeTimeout:   conf.S3Timeout * time.Second,
+                        ExpectContinueTimeout: conf.S3Timeout * time.Second,
+                }}
 		resp, err = client.Do(r2)
 		if err == nil {
 			break
