@@ -179,7 +179,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logging.Infof("S3 timeout, retrying: %s", s3url)
+		logging.Errorf("S3 timeout, retrying: %s", s3url)
 		nretries++
 	}
 
@@ -201,7 +201,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		if r2.Method != "HEAD" {
 			bytes, err := io.Copy(w, resp.Body)
 			if err != nil {
-				logging.Infof("Failed to copy response for %s - %v (TCP disconnect?)", url, err)
+				logging.Errorf("Failed to copy response for %s - %v (TCP disconnect?)", url, err)
 			} else {
 				statter.Inc("s3_serve.bytes", bytes, 1)
 				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
