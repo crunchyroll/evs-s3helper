@@ -18,11 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/crunchyroll/evs-common/config"
 	"github.com/crunchyroll/evs-common/logging"
 	"github.com/crunchyroll/evs-common/newrelic"
-	"github.com/crunchyroll/evs-common/util"
 	"github.com/crunchyroll/go-aws-auth"
 )
 
@@ -67,7 +65,6 @@ const defaultConfValues = `
 var conf Config
 var progName string
 var statRate float32 = 1
-var statter statsd.Statter
 
 // List of headers to forward in response
 var headerForward = map[string]bool{
@@ -94,23 +91,6 @@ func initRuntime() {
 	runtime.GOMAXPROCS(conc)
 }
 
-func initStatsd() {
-	var err error
-
-	if conf.StatsdAddr == "" {
-		statter, err = statsd.NewNoop()
-	} else {
-		prefix := fmt.Sprintf("%s.%s", conf.StatsdEnvironment, progName)
-		statter, err = statsd.New(conf.StatsdAddr, prefix)
-	}
-
-	util.SetStatterForTimer(statter)
-
-	if err != nil {
-		logging.Panicf("Couldn't initialize statsd: %v", err)
-	}
-}
-
 func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", serverName)
 
@@ -130,7 +110,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
-		statter.Inc("s3_serve.fail.req_creation", 1, 1)
 		logging.Errorf("Failed to create GET request for S3 object - %v", err)
 		return
 	}
@@ -179,7 +158,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logging.Errorf("S3 timeout, retrying: %s", s3url)
+		logging.Errorf("S3 connection timeout, retry #%d: %s", nretries, s3url)
 		nretries++
 	}
 
@@ -196,14 +175,33 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 
 	logging.Debugf("S3 transfer %s [%s]", resp.Status, url)
 
+	// we can't buffer in ram or to disk so write the body
+	// directly to the return body buffer and stream out
+	// to the client. if we have a failure, we can't notify
+	// the client, this is a poor design with potential
+	// silent truncation of the output.
 	w.WriteHeader(resp.StatusCode)
+	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			bytes, err := io.Copy(w, resp.Body)
+			nretries = 0
+			for {
+				nretries++
+				var nbytes int64
+				nbytes, err = io.Copy(w, resp.Body)
+				// retry 3 times, copy continues
+				// where it left off each round.
+				bytes += nbytes
+				if err == nil || nretries >= 3 {
+					// too many retries or success
+					break
+				}
+			}
 			if err != nil {
-				logging.Errorf("Failed to copy response for %s - %v (TCP disconnect?)", url, err)
+				// we failed copying the body yet already sent the http header so can't tell
+				// the client that it failed.
+				logging.Errorf("Failed to copy response for %s (%d bytes) - %v (TCP disconnect?)", url, bytes, err)
 			} else {
-				statter.Inc("s3_serve.bytes", bytes, 1)
 				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
 			}
 		}
@@ -231,10 +229,6 @@ func main() {
 	logging.Infof("Loaded config from %v", *configFile)
 
 	initRuntime()
-	initStatsd()
-
-	statter.Inc("start", 1, 1)
-	defer statter.Inc("stop", 1, 1)
 
 	// nr := newrelic.NewNewRelic(&conf.NewRelic)
 	mux := http.NewServeMux()
