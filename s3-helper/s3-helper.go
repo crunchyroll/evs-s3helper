@@ -195,12 +195,15 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				if err == nil || nretries >= 3 {
 					// too many retries or success
 					break
+				} else {
+					logging.Errorf("Failed to copy response for %s (try #%d %d bytes / %d bytes) - %v",
+						url, nretries, nbytes, bytes, err)
 				}
 			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logging.Errorf("Failed to copy response for %s (%d bytes) - %v (TCP disconnect?)", url, bytes, err)
+				logging.Errorf("Failed to copy response for %s (%d bytes) - %v", url, bytes, err)
 			} else {
 				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
 			}
