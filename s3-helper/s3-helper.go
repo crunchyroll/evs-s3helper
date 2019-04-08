@@ -172,6 +172,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// set the content length so failures are caught by client
+	//w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.Body.ContentLength))
 
 	logging.Debugf("S3 transfer %s [%s]", resp.Status, url)
 
@@ -194,6 +196,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				bytes += nbytes
 				if err == nil || nretries >= 3 {
 					// too many retries or success
+					resp.Body.Close()
 					break
 				} else {
 					logging.Errorf("Failed to copy response for %s (try #%d %d bytes / %d bytes) - %v",
