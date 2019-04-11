@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/crunchyroll/evs-common/config"
-	"github.com/crunchyroll/evs-common/logging"
 	"github.com/crunchyroll/evs-common/newrelic"
 	"github.com/crunchyroll/go-aws-auth"
 )
@@ -29,8 +28,7 @@ const configFileDefault = "/etc/s3-helper.yml"
 
 // Config holds the global config
 type Config struct {
-	Listen  string `yaml:"listen"`
-	Logging logging.Config
+	Listen string `yaml:"listen"`
 
 	Concurrency int `optional:"true"`
 
@@ -81,13 +79,13 @@ const serverName = "VOD S3 Helper"
 // Initialize process runtime
 func initRuntime() {
 	ncpus := runtime.NumCPU()
-	logging.Infof("System has %d CPUs", ncpus)
+	fmt.Printf("[INFO] System has %d CPUs\n", ncpus)
 
 	conc := ncpus
 	if conf.Concurrency != 0 {
 		conc = conf.Concurrency
 	}
-	logging.Infof("Setting thread concurrency to %d", conc)
+	fmt.Printf("[INFO] Setting thread concurrency to %d\n", conc)
 	runtime.GOMAXPROCS(conc)
 }
 
@@ -110,15 +108,14 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
-		logging.Errorf("Failed to create GET request for S3 object - %v", err)
+		fmt.Printf("[ERROR] S3:%s Failed to create GET request - %v\n", path, err)
 		return
 	}
 
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
-
-	logging.Debugf("Forwarding request to %s", url)
+	fmt.Printf("[INFO] S3:%s Received GET request\n", path)
 
 	r2.Header.Set("Host", r2.URL.Host)
 	if byterange := r.Header.Get("Range"); byterange != "" {
@@ -153,12 +150,12 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		isTimeout := ok && netErr.Timeout()
 
 		if nretries >= conf.S3Retries || !isTimeout {
-			logging.Errorf("S3 connection failed after #%d retries: %v", conf.S3Retries, err)
+			fmt.Printf("[ERROR] S3:%s Connection failed after #%d retries: %v\n", path, conf.S3Retries, err)
 			w.WriteHeader(500)
 			return
 		}
 
-		logging.Errorf("S3 connection timeout, retry #%d: %s", nretries, s3url)
+		fmt.Printf("[ERROR] S3:%s connection timeout retry #%d\n", path, nretries)
 		nretries++
 	}
 
@@ -172,10 +169,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// set the content length so failures are caught by client
-	//w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.Body.ContentLength))
-
-	logging.Debugf("S3 transfer %s [%s]", resp.Status, url)
 
 	// we can't buffer in ram or to disk so write the body
 	// directly to the return body buffer and stream out
@@ -186,6 +179,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
+			fmt.Printf("[INFO] S3:%s begin data transfer\n", url)
 			nretries = 0
 			for {
 				nretries++
@@ -196,22 +190,24 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				bytes += nbytes
 				if err == nil || nretries >= 3 {
 					// too many retries or success
-                                        // force the body to close when we fully fail
+					// force the body to close when we fully fail
 					resp.Body.Close()
 					break
 				} else {
-					logging.Errorf("S3 failed to copy response for %s (try #%d %d bytes / %d bytes) - %v",
+					fmt.Printf("[ERROR] S3:%s failed to copy (try #%d %d bytes / %d bytes) - %v\n",
 						url, nretries, nbytes, bytes, err)
 				}
 			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logging.Errorf("S3 failed to copy response for %s (%d bytes) - %v", url, bytes, err)
+				fmt.Printf("[ERROR] S3:%s failed to copy (got %d bytes) - %v\n", url, bytes, err)
 			} else {
-				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
+				fmt.Printf("[INFO] S3:%s transfered %d bytes\n", url, bytes)
 			}
 		}
+	} else {
+		fmt.Printf("[INFO] S3:%s connection failed with status [%d]\n", url, resp.StatusCode)
 	}
 }
 
@@ -225,15 +221,14 @@ func main() {
 	flag.Parse()
 
 	if !config.Load(*configFile, defaultConfValues, &conf) {
-		log.Printf("Unable to load config from %s - terminating", *configFile)
+		log.Printf("[ERROR] Unable to load config from %s - terminating\n", *configFile)
 		return
 	}
 
-	logging.Init(&conf.Logging)
-	logging.Infof("%s starting up", progName)
-	defer logging.Infof("%s shutting down", progName)
+	fmt.Printf("[INFO] %s starting up\n", progName)
+	defer fmt.Printf("[INFO] %s shutting down\n", progName)
 
-	logging.Infof("Loaded config from %v", *configFile)
+	fmt.Printf("[INFO] Loaded config from %v\n", *configFile)
 
 	initRuntime()
 
@@ -248,13 +243,17 @@ func main() {
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		logging.Infof("pprof is enabled")
+		fmt.Printf("[INFO] pprof is enabled\n")
 	}
 
-	logging.Infof("Accepting connections on %v", conf.Listen)
+	fmt.Printf("[INFO] Accepting connections on %v\n", conf.Listen)
 
 	go func() {
-		logging.Panicf("%v", http.ListenAndServe(conf.Listen, mux))
+		errLNS := http.ListenAndServe(conf.Listen, mux)
+		if errLNS != nil {
+			fmt.Printf("[ERROR] failure starting up %v\n", errLNS)
+			os.Exit(1)
+		}
 	}()
 
 	stopSignals := make(chan os.Signal, 1)
