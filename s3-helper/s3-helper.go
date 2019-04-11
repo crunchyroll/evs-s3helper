@@ -115,7 +115,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
-	fmt.Printf("[INFO] S3:%s Received GET request for [%s]\n", path, url)
+	fmt.Printf("[INFO] S3:%s Received GET request for url [%s] byterange %s\n", path, url, r.Header.Get("Range"))
 
 	r2.Header.Set("Host", r2.URL.Host)
 	if byterange := r.Header.Get("Range"); byterange != "" {
