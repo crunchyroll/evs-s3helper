@@ -105,20 +105,21 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := r.URL.Path
+        byterange := r.Header.Get("Range")
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
-		fmt.Printf("[ERROR] S3:%s Failed to create GET request - %v\n", path, err)
+		fmt.Printf("[ERROR] S3:%s:%s Failed to create GET request [%s] - %v\n", path, byterange, s3url, err)
 		return
 	}
 
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
-	fmt.Printf("[INFO] S3:%s Received GET request for url [%s] byterange %s\n", path, url, r.Header.Get("Range"))
+	fmt.Printf("[INFO] S3:%s:%s Received GET request for url [%s]\n", path, byterange, url)
 
 	r2.Header.Set("Host", r2.URL.Host)
-	if byterange := r.Header.Get("Range"); byterange != "" {
+	if byterange != "" {
 		r2.Header.Set("Range", byterange)
 	}
 
@@ -150,12 +151,12 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		isTimeout := ok && netErr.Timeout()
 
 		if nretries >= conf.S3Retries || !isTimeout {
-			fmt.Printf("[ERROR] S3:%s Connection failed after #%d retries: %v\n", path, conf.S3Retries, err)
+			fmt.Printf("[ERROR] S3:%s:%s Connection failed after #%d retries: %v\n", path, byterange, conf.S3Retries, err)
 			w.WriteHeader(500)
 			return
 		}
 
-		fmt.Printf("[ERROR] S3:%s connection timeout retry #%d\n", path, nretries)
+		fmt.Printf("[ERROR] S3:%s:%s connection timeout retry #%d\n", path, byterange, nretries)
 		nretries++
 	}
 
@@ -179,7 +180,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			fmt.Printf("[INFO] S3:%s begin data transfer\n", path)
+			fmt.Printf("[INFO] S3:%s:%s begin data transfer\n", path, byterange)
 			nretries = 0
 			for {
 				nretries++
@@ -194,20 +195,20 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 					resp.Body.Close()
 					break
 				} else {
-					fmt.Printf("[ERROR] S3:%s failed to copy (try #%d %d bytes / %d bytes) - %v\n",
-						path, nretries, nbytes, bytes, err)
+					fmt.Printf("[ERROR] S3:%s:%s failed to copy (try #%d %d bytes / %d bytes) - %v\n",
+						path, byterange, nretries, nbytes, bytes, err)
 				}
 			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				fmt.Printf("[ERROR] S3:%s failed to copy (got %d bytes) - %v\n", path, bytes, err)
+				fmt.Printf("[ERROR] S3:%s:%s failed to copy (got %d bytes) - %v\n", path, byterange, bytes, err)
 			} else {
-				fmt.Printf("[INFO] S3:%s transfered %d bytes\n", path, bytes)
+				fmt.Printf("[INFO] S3:%s:%s transfered %d bytes\n", path, byterange, bytes)
 			}
 		}
 	} else {
-		fmt.Printf("[INFO] S3:%s connection failed with status [%d]\n", path, resp.StatusCode)
+		fmt.Printf("[INFO] S3:%s:%s connection failed with status [%d]\n", path, byterange, resp.StatusCode)
 	}
 }
 
