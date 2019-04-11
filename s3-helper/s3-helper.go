@@ -153,7 +153,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		isTimeout := ok && netErr.Timeout()
 
 		if nretries >= conf.S3Retries || !isTimeout {
-			logging.Errorf("S3 error: %v", err)
+			logging.Errorf("S3 connection failed after #%d retries: %v", conf.S3Retries, err)
 			w.WriteHeader(500)
 			return
 		}
@@ -196,17 +196,18 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				bytes += nbytes
 				if err == nil || nretries >= 3 {
 					// too many retries or success
+                                        // force the body to close when we fully fail
 					resp.Body.Close()
 					break
 				} else {
-					logging.Errorf("Failed to copy response for %s (try #%d %d bytes / %d bytes) - %v",
+					logging.Errorf("S3 failed to copy response for %s (try #%d %d bytes / %d bytes) - %v",
 						url, nretries, nbytes, bytes, err)
 				}
 			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logging.Errorf("Failed to copy response for %s (%d bytes) - %v", url, bytes, err)
+				logging.Errorf("S3 failed to copy response for %s (%d bytes) - %v", url, bytes, err)
 			} else {
 				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
 			}

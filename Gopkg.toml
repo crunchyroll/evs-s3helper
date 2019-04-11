@@ -26,10 +26,6 @@
 
 
 [[constraint]]
-  name = "github.com/cactus/go-statsd-client"
-  version = "3.1.0"
-
-[[constraint]]
   branch = "master"
   name = "github.com/crunchyroll/evs-common"
 
