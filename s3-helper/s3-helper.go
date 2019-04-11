@@ -115,7 +115,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
-	fmt.Printf("[INFO] S3:%s Received GET request\n", path)
+	fmt.Printf("[INFO] S3:%s Received GET request for [%s]\n", path, url)
 
 	r2.Header.Set("Host", r2.URL.Host)
 	if byterange := r.Header.Get("Range"); byterange != "" {
@@ -179,7 +179,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			fmt.Printf("[INFO] S3:%s begin data transfer\n", url)
+			fmt.Printf("[INFO] S3:%s begin data transfer\n", path)
 			nretries = 0
 			for {
 				nretries++
@@ -195,19 +195,19 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 					break
 				} else {
 					fmt.Printf("[ERROR] S3:%s failed to copy (try #%d %d bytes / %d bytes) - %v\n",
-						url, nretries, nbytes, bytes, err)
+						path, nretries, nbytes, bytes, err)
 				}
 			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				fmt.Printf("[ERROR] S3:%s failed to copy (got %d bytes) - %v\n", url, bytes, err)
+				fmt.Printf("[ERROR] S3:%s failed to copy (got %d bytes) - %v\n", path, bytes, err)
 			} else {
-				fmt.Printf("[INFO] S3:%s transfered %d bytes\n", url, bytes)
+				fmt.Printf("[INFO] S3:%s transfered %d bytes\n", path, bytes)
 			}
 		}
 	} else {
-		fmt.Printf("[INFO] S3:%s connection failed with status [%d]\n", url, resp.StatusCode)
+		fmt.Printf("[INFO] S3:%s connection failed with status [%d]\n", path, resp.StatusCode)
 	}
 }
 
