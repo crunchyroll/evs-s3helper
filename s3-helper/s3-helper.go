@@ -160,7 +160,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				Timeout:   conf.S3Timeout,
 				KeepAlive: 1 * time.Second,
 			}).DialContext,
-			IdleConnTimeout: conf.S3Timeout,
+			IdleConnTimeout:   conf.S3Timeout,
+			DisableKeepAlives: true, // terminates open connections
 		}}
 
 	for {
@@ -199,6 +200,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// to the client. if we have a failure, we can't notify
 	// the client, this is a poor design with potential
 	// silent truncation of the output.
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
