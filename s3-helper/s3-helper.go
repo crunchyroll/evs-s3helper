@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -105,7 +106,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := r.URL.Path
-        byterange := r.Header.Get("Range")
+	byterange := r.Header.Get("Range")
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
@@ -118,9 +119,31 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	url := r2.URL.String()
 	fmt.Printf("[INFO] S3:%s:%s Received GET request for url [%s]\n", path, byterange, url)
 
+	var body_size int
 	r2.Header.Set("Host", r2.URL.Host)
 	if byterange != "" {
 		r2.Header.Set("Range", byterange)
+		// bytes=Start-Stop  split twice and get Start and Stop byte values
+		s1 := strings.SplitN(byterange, "=", 2)
+		if len(s1) == 2 {
+			// Start-Stop
+			br := strings.SplitN(s1[1], "-", 2)
+			if len(br) == 2 {
+				range1, err1 := strconv.Atoi(br[0])
+				range2, err2 := strconv.Atoi(br[1])
+				if err1 == nil && err2 == nil {
+					if range1 >= 0 && range2 > range1 {
+						body_size = (range2 - range1) + 1
+						// set content length if we can to force a failure if the s3 connection breaks
+						r2.Header.Set("Content-Length", strconv.Itoa(body_size))
+					} else {
+						fmt.Printf("[ERROR] S3:%s:%s Invalid byterange request values: %s[%v] %s[%v]\n", path, byterange, br[0], err1, br[1], err2)
+					}
+				} else {
+					fmt.Printf("[ERROR] S3:%s:%s Failed to get byterange request values: %s[%v] %s[%v]\n", path, byterange, br[0], err1, br[1], err2)
+				}
+			}
+		}
 	}
 
 	nretries := 0
@@ -180,7 +203,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			fmt.Printf("[INFO] S3:%s:%s begin data transfer\n", path, byterange)
+			fmt.Printf("[INFO] S3:%s:%s begin data transfer of %d bytes\n", path, byterange, body_size)
 			nretries = 0
 			for {
 				nretries++
@@ -202,9 +225,9 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				fmt.Printf("[ERROR] S3:%s:%s failed to copy (got %d bytes) - %v\n", path, byterange, bytes, err)
+				fmt.Printf("[ERROR] S3:%s:%s failed to copy (got %d of %d bytes) - %v\n", path, byterange, bytes, body_size, err)
 			} else {
-				fmt.Printf("[INFO] S3:%s:%s transfered %d bytes\n", path, byterange, bytes)
+				fmt.Printf("[INFO] S3:%s:%s transfered %d/%d bytes\n", path, byterange, bytes, body_size)
 			}
 		}
 	} else {
