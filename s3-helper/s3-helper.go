@@ -121,6 +121,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 
 	var body_size int
 	r2.Header.Set("Host", r2.URL.Host)
+	// parse the byterange request header to derive the content-length requested
+	// so we know how much data we need to xfer from s3 to the client.
 	if byterange != "" {
 		r2.Header.Set("Range", byterange)
 		// bytes=Start-Stop  split twice and get Start and Stop byte values
@@ -200,6 +202,11 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// to the client. if we have a failure, we can't notify
 	// the client, this is a poor design with potential
 	// silent truncation of the output.
+	//
+	// Workaround this with a content-length header matching expected
+	// body size derived from the range request size. every request is
+	// a range request so we are good, otherwise it would have the same
+	// flaw for non-range requests.
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
@@ -214,7 +221,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				// retry 3 times, copy continues
 				// where it left off each round.
 				bytes += nbytes
-				if err == nil || nretries >= 3 {
+				if err == nil || nretries > 3 {
 					// too many retries or success
 					// force the body to close when we fully fail
 					resp.Body.Close()
