@@ -299,15 +299,15 @@ func main() {
 	flag.Parse()
 
 	if !config.Load(*configFile, defaultConfValues, &conf) {
-		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating\n", *configFile))
+		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating", *configFile))
 		return
 	}
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	log.Info().Msg("Starting up\n")
-	defer log.Info().Msg("Shutting down\n")
+	log.Info().Msg("Starting up")
+	defer log.Info().Msg("Shutting down")
 
-	log.Info().Msg(fmt.Sprintf("Loaded config from %s\n", *configFile))
+	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
 
 	initRuntime()
 
@@ -322,7 +322,7 @@ func main() {
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		log.Info().Msg("pprof is enabled\n")
+		log.Info().Msg("pprof is enabled")
 	}
 
 	log.Info().Msg(fmt.Sprintf("Accepting connections on %v", conf.Listen))
