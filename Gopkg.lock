@@ -37,6 +37,19 @@
   version = "v1.5.0"
 
 [[projects]]
+  digest = "1:e30b5c6d83a83f1369fa92f0e279ab8046e9ee7fa2d71360956e910f44072ffb"
+  name = "github.com/rs/zerolog"
+  packages = [
+    ".",
+    "internal/cbor",
+    "internal/json",
+    "log",
+  ]
+  pruneopts = "UT"
+  revision = "651d361cfeb9d0f5b9f1d14b162c66c82509ef6d"
+  version = "v1.13.0"
+
+[[projects]]
   digest = "1:cacb98d52c60c337c2ce95a7af83ba0313a93ce5e73fa9e99a96aff70776b9d3"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -48,9 +61,10 @@
   analyzer-version = 1
   input-imports = [
     "github.com/crunchyroll/evs-common/config",
-    "github.com/crunchyroll/evs-common/logging",
     "github.com/crunchyroll/evs-common/newrelic",
     "github.com/crunchyroll/go-aws-auth",
+    "github.com/rs/zerolog",
+    "github.com/rs/zerolog/log",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
