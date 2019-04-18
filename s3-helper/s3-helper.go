@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -14,16 +13,16 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/crunchyroll/evs-common/config"
-	"github.com/crunchyroll/evs-common/logging"
-	"github.com/crunchyroll/evs-common/newrelic"
-	"github.com/crunchyroll/evs-common/util"
 	"github.com/crunchyroll/go-aws-auth"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Default config file
@@ -31,8 +30,7 @@ const configFileDefault = "/etc/s3-helper.yml"
 
 // Config holds the global config
 type Config struct {
-	Listen  string `yaml:"listen"`
-	Logging logging.Config
+	Listen string `yaml:"listen"`
 
 	Concurrency int `optional:"true"`
 
@@ -42,11 +40,6 @@ type Config struct {
 	S3Region string `yaml:"s3_region"`
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
-
-	// Keep the NewRelic as optional, so we don't remove it from ellation_formation
-	NewRelic          newrelic.Config `yaml:"newrelic" optional:"true"`
-	StatsdAddr        string          `yaml:"statsd_addr"`
-	StatsdEnvironment string          `yaml:"statsd_env"`
 }
 
 const defaultConfValues = `
@@ -67,7 +60,6 @@ const defaultConfValues = `
 var conf Config
 var progName string
 var statRate float32 = 1
-var statter statsd.Statter
 
 // List of headers to forward in response
 var headerForward = map[string]bool{
@@ -84,31 +76,15 @@ const serverName = "VOD S3 Helper"
 // Initialize process runtime
 func initRuntime() {
 	ncpus := runtime.NumCPU()
-	logging.Infof("System has %d CPUs", ncpus)
+	log.Info().Msg(fmt.Sprintf("System has %d CPUs", ncpus))
 
 	conc := ncpus
 	if conf.Concurrency != 0 {
 		conc = conf.Concurrency
 	}
-	logging.Infof("Setting thread concurrency to %d", conc)
+	log.Info().Msg(fmt.Sprintf("Setting thread concurrency to %d", conc))
 	runtime.GOMAXPROCS(conc)
-}
 
-func initStatsd() {
-	var err error
-
-	if conf.StatsdAddr == "" {
-		statter, err = statsd.NewNoop()
-	} else {
-		prefix := fmt.Sprintf("%s.%s", conf.StatsdEnvironment, progName)
-		statter, err = statsd.New(conf.StatsdAddr, prefix)
-	}
-
-	util.SetStatterForTimer(statter)
-
-	if err != nil {
-		logging.Panicf("Couldn't initialize statsd: %v", err)
-	}
 }
 
 func forwardToS3(w http.ResponseWriter, r *http.Request) {
@@ -126,24 +102,66 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := r.URL.Path
-	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
+	upath := r.URL.Path
+	byterange := r.Header.Get("Range")
+	logger := log.With().
+		Str("object", upath).
+		Str("range", byterange).
+		Str("method", r.Method).
+		Logger()
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, upath)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
-		statter.Inc("s3_serve.fail.req_creation", 1, 1)
-		logging.Errorf("Failed to create GET request for S3 object - %v", err)
+		w.WriteHeader(403)
+		logger.Error().
+			Str("error", err.Error()).
+			Str("url", s3url).
+			Msg("Failed to create GET request")
 		return
 	}
 
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
+	logger.Info().
+		Str("url", url).
+		Msg("Received request")
 
-	logging.Debugf("Forwarding request to %s", url)
-
+	var bodySize int64
 	r2.Header.Set("Host", r2.URL.Host)
-	if byterange := r.Header.Get("Range"); byterange != "" {
+	// parse the byterange request header to derive the content-length requested
+	// so we know how much data we need to xfer from s3 to the client.
+	if byterange != "" {
 		r2.Header.Set("Range", byterange)
+		// bytes=Start-Stop  split twice and get Start and Stop byte values
+		s1 := strings.SplitN(byterange, "=", 2)
+		if len(s1) == 2 {
+			// Start-Stop
+			br := strings.SplitN(s1[1], "-", 2)
+			if len(br) == 2 {
+				range1, err1 := strconv.Atoi(br[0])
+				range2, err2 := strconv.Atoi(br[1])
+				if err1 == nil && err2 == nil {
+					if range1 >= 0 && range2 > range1 {
+						bodySize = (int64)(range2-range1) + 1
+					} else {
+						logger.Error().
+							Str("rangeA", br[0]).
+							Str("errorA", err1.Error()).
+							Str("rangeB", br[1]).
+							Str("errorB", err2.Error()).
+							Msg("Invalid byterange request values")
+					}
+				} else {
+					logger.Error().
+						Str("rangeA", br[0]).
+						Str("errorA", err1.Error()).
+						Str("rangeB", br[1]).
+						Str("errorB", err2.Error()).
+						Msg("Failed to derive byterange request values")
+				}
+			}
+		}
 	}
 
 	nretries := 0
@@ -160,7 +178,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				Timeout:   conf.S3Timeout,
 				KeepAlive: 1 * time.Second,
 			}).DialContext,
-			IdleConnTimeout: conf.S3Timeout,
+			IdleConnTimeout:   conf.S3Timeout,
+			DisableKeepAlives: true, // terminates open connections
 		}}
 
 	for {
@@ -174,43 +193,101 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		isTimeout := ok && netErr.Timeout()
 
 		if nretries >= conf.S3Retries || !isTimeout {
-			logging.Errorf("S3 error: %v", err)
+			logger.Error().
+				Str("error", err.Error()).
+				Msg(fmt.Sprintf("Connection failed after #%d retries", conf.S3Retries))
 			w.WriteHeader(500)
 			return
 		}
 
-		logging.Infof("S3 timeout, retrying: %s", s3url)
+		logger.Error().
+			Str("error", err.Error()).
+			Msg(fmt.Sprintf("Connection timeout: retry #%d", nretries))
 		nretries++
 	}
 
 	defer resp.Body.Close()
 
 	header := resp.Header
-	for name, flag := range headerForward {
-		if flag {
+	for name, hflag := range headerForward {
+		if hflag {
 			if v := header.Get(name); v != "" {
 				w.Header().Set(name, v)
 			}
 		}
 	}
 
-	logging.Debugf("S3 transfer %s [%s]", resp.Status, url)
-
+	// we can't buffer in ram or to disk so write the body
+	// directly to the return body buffer and stream out
+	// to the client. if we have a failure, we can't notify
+	// the client, this is a poor design with potential
+	// silent truncation of the output.
+	//
+	// Workaround this with a content-length header matching expected
+	// body size derived from the range request size. every request is
+	// a range request so we are good, otherwise it would have the same
+	// flaw for non-range requests.
+	if bodySize > 0 {
+		// set content length if we can to force a failure if the s3 connection breaks
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", bodySize))
+	}
 	w.WriteHeader(resp.StatusCode)
+	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			bytes, err := io.Copy(w, resp.Body)
+			logger.Info().
+				Int64("content-length", bodySize).
+				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
+			nretries = 0
+			for {
+				nretries++
+				var nbytes int64
+				nbytes, err = io.Copy(w, resp.Body)
+				// retry 3 times, copy continues
+				// where it left off each round.
+				bytes += nbytes
+				if err == nil || nretries > 3 {
+					// too many retries or success
+					// force the body to close when we fully fail
+					resp.Body.Close()
+					break
+				} else {
+					logger.Error().
+						Str("error", err.Error()).
+						Int64("content-length", bodySize).
+						Int("retry", nretries).
+						Int64("recv", bytes).
+						Int64("recv-total", nbytes).
+						Msg(fmt.Sprintf("Failed data transfer of #%d bytes", bodySize))
+				}
+			}
 			if err != nil {
-				logging.Infof("Failed to copy response for %s - %v (TCP disconnect?)", url, err)
+				// we failed copying the body yet already sent the http header so can't tell
+				// the client that it failed.
+				logger.Error().
+					Str("error", err.Error()).
+					Int64("content-length", bodySize).
+					Int64("recv", bytes).
+					Msg("Failed to copy body")
 			} else {
-				statter.Inc("s3_serve.bytes", bytes, 1)
-				logging.Debugf("S3 transfered %d bytes from %v", bytes, url)
+				logger.Info().
+					Int64("content-length", bodySize).
+					Int64("recv", bytes).
+					Msg("Success copying body")
 			}
 		}
+	} else {
+		logger.Error().
+			Str("error", fmt.Sprintf("Response Status Code: %d", resp.StatusCode)).
+			Int("statuscode", resp.StatusCode).
+			Int64("content-length", bodySize).
+			Int64("recv", bytes).
+			Msg("Bad connection status response code")
 	}
 }
 
 func main() {
+	zerolog.TimeFieldFormat = ""
 	rand.Seed(time.Now().UnixNano())
 
 	progName = path.Base(os.Args[0])
@@ -220,21 +297,17 @@ func main() {
 	flag.Parse()
 
 	if !config.Load(*configFile, defaultConfValues, &conf) {
-		log.Printf("Unable to load config from %s - terminating", *configFile)
+		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating", *configFile))
 		return
 	}
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	logging.Init(&conf.Logging)
-	logging.Infof("%s starting up", progName)
-	defer logging.Infof("%s shutting down", progName)
+	log.Info().Msg("Starting up")
+	defer log.Info().Msg("Shutting down")
 
-	logging.Infof("Loaded config from %v", *configFile)
+	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
 
 	initRuntime()
-	initStatsd()
-
-	statter.Inc("start", 1, 1)
-	defer statter.Inc("stop", 1, 1)
 
 	// nr := newrelic.NewNewRelic(&conf.NewRelic)
 	mux := http.NewServeMux()
@@ -247,13 +320,17 @@ func main() {
 		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		logging.Infof("pprof is enabled")
+		log.Info().Msg("pprof is enabled")
 	}
 
-	logging.Infof("Accepting connections on %v", conf.Listen)
+	log.Info().Msg(fmt.Sprintf("Accepting connections on %v", conf.Listen))
 
 	go func() {
-		logging.Panicf("%v", http.ListenAndServe(conf.Listen, mux))
+		errLNS := http.ListenAndServe(conf.Listen, mux)
+		if errLNS != nil {
+			log.Error().Msg(fmt.Sprintf("Failure starting up %v", errLNS))
+			os.Exit(1)
+		}
 	}()
 
 	stopSignals := make(chan os.Signal, 1)
