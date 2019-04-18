@@ -131,7 +131,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		Str("url", url).
 		Msg("Received request")
 
-	var body_size int64
+	var bodySize int64
 	r2.Header.Set("Host", r2.URL.Host)
 	// parse the byterange request header to derive the content-length requested
 	// so we know how much data we need to xfer from s3 to the client.
@@ -147,7 +147,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				range2, err2 := strconv.Atoi(br[1])
 				if err1 == nil && err2 == nil {
 					if range1 >= 0 && range2 > range1 {
-						body_size = (int64)(range2-range1) + 1
+						bodySize = (int64)(range2-range1) + 1
 					} else {
 						logger.Error().
 							Str("rangeA", br[0]).
@@ -231,17 +231,17 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// body size derived from the range request size. every request is
 	// a range request so we are good, otherwise it would have the same
 	// flaw for non-range requests.
-	if body_size > 0 {
+	if bodySize > 0 {
 		// set content length if we can to force a failure if the s3 connection breaks
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", body_size))
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", bodySize))
 	}
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
 			logger.Info().
-				Int64("content-length", body_size).
-				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", body_size))
+				Int64("content-length", bodySize).
+				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
 			nretries = 0
 			for {
 				nretries++
@@ -258,11 +258,11 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				} else {
 					logger.Error().
 						Str("error", err.Error()).
-						Int64("content-length", body_size).
+						Int64("content-length", bodySize).
 						Int("retry", nretries).
 						Int64("recv", bytes).
 						Int64("recv-total", nbytes).
-						Msg(fmt.Sprintf("Failed data transfer of #%d bytes", body_size))
+						Msg(fmt.Sprintf("Failed data transfer of #%d bytes", bodySize))
 				}
 			}
 			if err != nil {
@@ -270,12 +270,12 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				// the client that it failed.
 				logger.Error().
 					Str("error", err.Error()).
-					Int64("content-length", body_size).
+					Int64("content-length", bodySize).
 					Int64("recv", bytes).
 					Msg("Failed to copy body")
 			} else {
 				logger.Info().
-					Int64("content-length", body_size).
+					Int64("content-length", bodySize).
 					Int64("recv", bytes).
 					Msg("Success copying body")
 			}
@@ -284,7 +284,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		logger.Error().
 			Str("error", fmt.Sprintf("Response Status Code: %d", resp.StatusCode)).
 			Int("statuscode", resp.StatusCode).
-			Int64("content-length", body_size).
+			Int64("content-length", bodySize).
 			Int64("recv", bytes).
 			Msg("Bad connection status response code")
 	}
