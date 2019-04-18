@@ -41,9 +41,6 @@ type Config struct {
 	S3Region string `yaml:"s3_region"`
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
-
-	// Keep the NewRelic as optional, so we don't remove it from ellation_formation
-	NewRelic newrelic.Config `yaml:"newrelic" optional:"true"`
 }
 
 const defaultConfValues = `
