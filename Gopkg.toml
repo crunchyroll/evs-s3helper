@@ -33,6 +33,10 @@
   branch = "master"
   name = "github.com/crunchyroll/go-aws-auth"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/rs/zerolog"
+
 [prune]
   go-tests = true
   unused-packages = true
