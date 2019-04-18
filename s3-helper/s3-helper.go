@@ -106,12 +106,12 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := r.URL.Path
+	upath := r.URL.Path
 	byterange := r.Header.Get("Range")
-	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, path)
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, upath)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	logger := log.With().
-		Str("object", path).
+		Str("object", upath).
 		Str("range", byterange).
 		Str("method", r.Method).
 		Logger()
@@ -214,8 +214,8 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	header := resp.Header
-	for name, flag := range headerForward {
-		if flag {
+	for name, hflag := range headerForward {
+		if hflag {
 			if v := header.Get(name); v != "" {
 				w.Header().Set(name, v)
 			}
