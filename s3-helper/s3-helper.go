@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/crunchyroll/evs-common/config"
-	"github.com/crunchyroll/evs-common/newrelic"
 	"github.com/crunchyroll/go-aws-auth"
 
 	"github.com/rs/zerolog"
