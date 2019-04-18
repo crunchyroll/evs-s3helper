@@ -108,14 +108,15 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 
 	upath := r.URL.Path
 	byterange := r.Header.Get("Range")
-	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, upath)
-	r2, err := http.NewRequest(r.Method, s3url, nil)
 	logger := log.With().
 		Str("object", upath).
 		Str("range", byterange).
 		Str("method", r.Method).
 		Logger()
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, upath)
+	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
+		w.WriteHeader(403)
 		logger.Error().
 			Str("error", err.Error()).
 			Str("url", s3url).
@@ -147,8 +148,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 				if err1 == nil && err2 == nil {
 					if range1 >= 0 && range2 > range1 {
 						body_size = (int64)(range2-range1) + 1
-						// set content length if we can to force a failure if the s3 connection breaks
-						r2.Header.Set("Content-Length", strconv.FormatInt(body_size, 10))
 					} else {
 						logger.Error().
 							Str("rangeA", br[0]).
@@ -232,7 +231,10 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// body size derived from the range request size. every request is
 	// a range request so we are good, otherwise it would have the same
 	// flaw for non-range requests.
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
+	if body_size > 0 {
+		// set content length if we can to force a failure if the s3 connection breaks
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", body_size))
+	}
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
