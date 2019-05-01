@@ -223,14 +223,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// the client, this is a poor design with potential
 	// silent truncation of the output.
 	//
-	// Workaround this with a content-length header matching expected
-	// body size derived from the range request size. every request is
-	// a range request so we are good, otherwise it would have the same
-	// flaw for non-range requests.
-	if bodySize > 0 {
-		// set content length if we can to force a failure if the s3 connection breaks
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", bodySize))
-	}
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
