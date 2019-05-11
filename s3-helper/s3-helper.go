@@ -40,21 +40,15 @@ type Config struct {
 	S3Region string `yaml:"s3_region"`
 	S3Bucket string `yaml:"s3_bucket"`
 	S3Path   string `yaml:"s3_prefix" optional:"true"`
+	LogLevel string `optional:"true"`
 }
 
 const defaultConfValues = `
     listen: "127.0.0.1:8080"
-    logging:
-        ident: "s3-helper"
-        level: "info"
-    newrelic:
-        name:    ""
-        license: ""
+    loglevel: "error"
     s3_timeout:  5s
     s3_retries:  5
     concurrency:   0
-    statsd_addr:   ""
-    statsd_env:    ""
 `
 
 var conf Config
@@ -292,7 +286,22 @@ func main() {
 		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating", *configFile))
 		return
 	}
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	if conf.LogLevel == "error" {
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	} else if conf.LogLevel == "warn" {
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	} else if conf.LogLevel == "info" {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	} else if conf.LogLevel == "debug" {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else if conf.LogLevel == "panic" {
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	} else if conf.LogLevel == "fatal" {
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+		log.Error().Msg(fmt.Sprintf("Bad loglevel given %s - defaulting to Warn level", conf.LogLevel))
+	}
 
 	log.Info().Msg("Starting up")
 	defer log.Info().Msg("Shutting down")
