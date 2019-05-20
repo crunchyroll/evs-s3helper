@@ -1,0 +1,6 @@
+mode: atomic
+github.com/crunchyroll/evs-s3helper/config/config.go:38.61,42.16 3 6
+github.com/crunchyroll/evs-s3helper/config/config.go:46.2,47.19 2 4
+github.com/crunchyroll/evs-s3helper/config/config.go:51.2,51.17 1 4
+github.com/crunchyroll/evs-s3helper/config/config.go:42.16,44.3 1 2
+github.com/crunchyroll/evs-s3helper/config/config.go:47.19,49.3 1 0

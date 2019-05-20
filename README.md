@@ -1,3 +1,11 @@
+# S3-Helper
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/crunchyroll/evs-s3helper)](https://goreportcard.com/report/github.com/crunchyroll/evs-s3helper)
+[![Build Status](https://travis-ci.org/crunchyroll/evs-s3helper.svg?branch=VOD-2919)](https://travis-ci.org/crunchyroll/evs-s3helper)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/dfe7e9b5d4c14ea28d1f9ea941f75ed2)](https://www.codacy.com/app/som-poddar/evs-s3helper?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=crunchyroll/evs-s3helper&amp;utm_campaign=Badge_Grade)
+[![Maintainability](https://api.codeclimate.com/v1/badges/7f57c6836366aa3d9b38/maintainability)](https://codeclimate.com/github/crunchyroll/evs-s3helper/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/7f57c6836366aa3d9b38/test_coverage)](https://codeclimate.com/github/crunchyroll/evs-s3helper/test_coverage)
+
 ## Overview
 
 s3helper signs S3 object requests using instance credentials.  It only accepts connections from 127.0.0.1
@@ -12,11 +20,11 @@ also remove the vendoring from this repo.
 
 Clone this repo, then:
 
-`$ cd s3-helper`
-
-`$ go get`
-
-`$ go build`
+```sh
+cd s3-helper`
+go get
+go build
+```
 
 ## Arguments
 
@@ -33,7 +41,7 @@ s3helper reads its configuration from a file in yml format.  The default locatio
 but this can be changed with the -config option, e.g. "-config=./test.yml"
 
 **Top-level config**
-
+```yml
     listen: <endpoint, default is ":8080">
     logging:
             ident: <syslog ident, default is "s3-helper">
@@ -48,20 +56,21 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
     s3_bucket:  <name of S3 bucket to forward object requests to>
     s3_region:  <region of S3 bucket>
     s3_path:    <optional prefix to prepend to object requests>
-    s3_retries; <maximum number of S3 retries>
+    s3_retries: <maximum number of S3 retries>
     s3_timeout: <timeout for S3 requests>
-    
-    
+```
+
 ## Behavior
 
 Assume the configuration consists of:
 
+```yml
     s3_bucket:  evs-dev
     s3_region:  us-west-2
     s3_path:    /chris
     s3_timeout: 3s
     s3_retries: 3
-
+```
 s3helper receives an HTTP request from 127.0.0.1, e.g. `GET /abcdef12345678/manifest.json`
 It takes this request and maps it to an S3 bucket URL,
     `http://s3-us-west-2.amazonaws.com/evs-dev/chris/abcdef12345678/manifest.json`

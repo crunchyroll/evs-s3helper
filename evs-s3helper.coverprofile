@@ -1,0 +1,15 @@
+mode: atomic
+github.com/crunchyroll/evs-s3helper/app.go:29.45,34.16 3 0
+github.com/crunchyroll/evs-s3helper/app.go:40.2,42.16 3 0
+github.com/crunchyroll/evs-s3helper/app.go:48.2,56.16 6 0
+github.com/crunchyroll/evs-s3helper/app.go:60.2,64.22 3 0
+github.com/crunchyroll/evs-s3helper/app.go:34.16,37.3 2 0
+github.com/crunchyroll/evs-s3helper/app.go:42.16,45.3 2 0
+github.com/crunchyroll/evs-s3helper/app.go:56.16,58.3 1 0
+github.com/crunchyroll/evs-s3helper/app.go:68.21,73.16 4 0
+github.com/crunchyroll/evs-s3helper/app.go:73.16,76.3 2 0
+github.com/crunchyroll/evs-s3helper/app.go:79.34,88.2 4 0
+github.com/crunchyroll/evs-s3helper/app.go:92.29,93.35 1 0
+github.com/crunchyroll/evs-s3helper/app.go:97.2,97.33 1 0
+github.com/crunchyroll/evs-s3helper/app.go:93.35,96.3 2 0
+github.com/crunchyroll/evs-s3helper/main.go:6.13,10.2 3 0
