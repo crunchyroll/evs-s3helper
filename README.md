@@ -1,5 +1,7 @@
 ## Overview
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/507c9f900da642fa8c4581a316397640)](https://app.codacy.com/app/som-poddar/evs-s3helper?utm_source=github.com&utm_medium=referral&utm_content=crunchyroll/evs-s3helper&utm_campaign=Badge_Grade_Dashboard)
+
 s3helper signs S3 object requests using instance credentials.  It only accepts connections from 127.0.0.1
 and only accepts GET and HEAD methods.  It provides no crossdomain.xml (though this can be put in the S3
 bucket).
