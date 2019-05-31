@@ -1,1 +1,12 @@
+# vendor directory from dependency manager
 vendor/
+
+# don't check in config with Newrelic license
+config/config.yml
+
+# binary file from the Makefile targets
+s3-helper
+
+# output from test coverage
+coverage.out
+*/.coverprofile

@@ -1,0 +1,32 @@
+language: go
+go:
+  - 1.12
+env:
+  - CODECOV_TOKEN="084b2a38-5792-441b-96ae-9097ad9b5738"
+
+cache:
+  directories:
+    - $TRAVIS_BUILD_DIR/vendor
+git:
+  depth: 1
+
+before_install:
+  - curl -L -s https://github.com/golang/dep/releases/download/v0.5.1/dep-linux-amd64 -o $GOPATH/bin/dep
+  - chmod +x $GOPATH/bin/dep
+
+install:
+  - dep ensure
+  - go get github.com/onsi/ginkgo/ginkgo
+  - go get -v -t ./...
+  - go get github.com/onsi/gomega/...
+  - go get golang.org/x/tools/cmd/cover
+  - go get github.com/mattn/goveralls
+
+script:
+  - ginkgo -r --randomizeAllSpecs --randomizeSuites --failOnPending --cover -covermode=count  -coverprofile=coverage.out -trace
+  - go test --race # since 'race' flag doesn't work with  covermode=count
+  - go vet
+
+after_success:
+ - bash <(curl -s https://codecov.io/bash) CODECOV_TOKEN
+ - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN

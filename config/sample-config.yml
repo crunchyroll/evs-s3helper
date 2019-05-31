@@ -1,0 +1,11 @@
+---
+Newrelic:
+  Name: s3-helper
+  License: dummy
+Service:
+  Listen: 8080
+Logging:
+  AppName: s3-helper
+  AppVersion: 0.0.1
+  EngGroup: nginx
+  Level: debug
