@@ -5,7 +5,7 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/dfe7e9b5d4c14ea28d1f9ea941f75ed2)](https://www.codacy.com/app/som-poddar/evs-s3helper?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=crunchyroll/evs-s3helper&amp;utm_campaign=Badge_Grade)
 [![Maintainability](https://api.codeclimate.com/v1/badges/7f57c6836366aa3d9b38/maintainability)](https://codeclimate.com/github/crunchyroll/evs-s3helper/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/7f57c6836366aa3d9b38/test_coverage)](https://codeclimate.com/github/crunchyroll/evs-s3helper/test_coverage)
-
+[![codecov](https://codecov.io/gh/crunchyroll/evs-s3helper/branch/master/graph/badge.svg)](https://codecov.io/gh/crunchyroll/evs-s3helper)
 ## Overview
 
 s3helper signs S3 object requests using instance credentials.  It only accepts connections from 127.0.0.1
