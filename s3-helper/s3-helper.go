@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -127,35 +126,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// so we know how much data we need to xfer from s3 to the client.
 	if byterange != "" {
 		r2.Header.Set("Range", byterange)
-		// bytes=Start-Stop  split twice and get Start and Stop byte values
-		s1 := strings.SplitN(byterange, "=", 2)
-		if len(s1) == 2 {
-			// Start-Stop
-			br := strings.SplitN(s1[1], "-", 2)
-			if len(br) == 2 {
-				range1, err1 := strconv.Atoi(br[0])
-				range2, err2 := strconv.Atoi(br[1])
-				if err1 == nil && err2 == nil {
-					if range1 >= 0 && range2 > range1 {
-						bodySize = (int64)(range2-range1) + 1
-					} else {
-						logger.Error().
-							Str("rangeA", br[0]).
-							Str("errorA", err1.Error()).
-							Str("rangeB", br[1]).
-							Str("errorB", err2.Error()).
-							Msg("Invalid byterange request values")
-					}
-				} else {
-					logger.Error().
-						Str("rangeA", br[0]).
-						Str("errorA", err1.Error()).
-						Str("rangeB", br[1]).
-						Str("errorB", err2.Error()).
-						Msg("Failed to derive byterange request values")
-				}
-			}
-		}
 	}
 
 	nretries := 0
@@ -224,29 +194,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			logger.Info().
 				Int64("content-length", bodySize).
 				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
-			nretries = 0
-			for {
-				nretries++
-				var nbytes int64
-				nbytes, err = io.Copy(w, resp.Body)
-				// retry 3 times, copy continues
-				// where it left off each round.
-				bytes += nbytes
-				if err == nil || nretries > 3 {
-					// too many retries or success
-					// force the body to close when we fully fail
-					resp.Body.Close()
-					break
-				} else {
-					logger.Error().
-						Str("error", err.Error()).
-						Int64("content-length", bodySize).
-						Int("retry", nretries).
-						Int64("recv", bytes).
-						Int64("recv-total", nbytes).
-						Msg(fmt.Sprintf("Failed data transfer of #%d bytes", bodySize))
-				}
-			}
+			bytes, err = io.Copy(w, resp.Body)
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
