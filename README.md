@@ -56,15 +56,15 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
 
 Assume the configuration consists of:
 
-    s3_bucket:  evs-dev
-    s3_region:  us-west-2
-    s3_path:    /chris
+    s3_bucket:  SomeBucket
+    s3_region:  SomeRegion
+    s3_path:    /SomePath
     s3_timeout: 3s
     s3_retries: 3
 
-s3helper receives an HTTP request from 127.0.0.1, e.g. `GET /abcdef12345678/manifest.json`
+s3helper receives an HTTP request from 127.0.0.1, e.g. `GET /SomeDirectory/manifest.json`
 It takes this request and maps it to an S3 bucket URL,
-    `http://s3-us-west-2.amazonaws.com/evs-dev/chris/abcdef12345678/manifest.json`
+    `http://s3-SomeRegion.amazonaws.com/SomeBucket/SomePath/SomeDirectory/manifest.json`
 This request is signed using the EC2 instance credentials for its first AMI role.
 An http GET request for this is made.
 The result is forwarded and the following headers retained:
