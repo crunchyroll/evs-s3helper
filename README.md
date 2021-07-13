@@ -12,17 +12,18 @@ also remove the vendoring from this repo.
 
 Clone this repo, then:
 
-`$ cd s3-helper`
-
-`$ go get`
-
-`$ go build`
+```
+make setup
+make build
+```
 
 ## Arguments
 
 Create a config in `s3-helper.yml`.  Start the service with:
 
-`$ ./s3-helper -config s3-helper.yml`
+```
+$ ./s3-helper -config s3-helper.yml
+```
 
 Run "s3-helper -h" which list possible flags.
 
@@ -32,8 +33,7 @@ Run "s3-helper -h" which list possible flags.
 s3helper reads its configuration from a file in yml format.  The default location is /mob/etc/s3-helper.yml,
 but this can be changed with the -config option, e.g. "-config=./test.yml"
 
-**Top-level config**
-
+```yml
     listen: <endpoint, default is ":8080">
     logging:
             ident: <syslog ident, default is "s3-helper">
@@ -50,7 +50,7 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
     s3_path:    <optional prefix to prepend to object requests>
     s3_retries; <maximum number of S3 retries>
     s3_timeout: <timeout for S3 requests>
-    
+```
     
 ## Behavior
 
