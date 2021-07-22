@@ -5,3 +5,4 @@ s3-helper/s3-helper
 *coverage.out
 vendor/
 s3-helper
+evs-s3helper

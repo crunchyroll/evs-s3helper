@@ -6,11 +6,12 @@ import "time"
 type Config struct {
 	Listen string `yaml:"listen"`
 
-	S3Bucket  string        `yaml:"s3_bucket"`
-	S3Path    string        `yaml:"s3_prefix" optional:"true"`
-	S3Region  string        `yaml:"s3_region"`
-	S3Retries int           `yaml:"s3_retries"`
-	S3Timeout time.Duration `yaml:"s3_timeout"`
+	S3AdBucket string        `yaml:"s3_ad_bucket"`
+	S3Bucket   string        `yaml:"s3_bucket"`
+	S3Path     string        `yaml:"s3_prefix" optional:"true"`
+	S3Region   string        `yaml:"s3_region"`
+	S3Retries  int           `yaml:"s3_retries"`
+	S3Timeout  time.Duration `yaml:"s3_timeout"`
 
 	LogLevel    string `optional:"true"`
 	Concurrency int    `optional:"true"`

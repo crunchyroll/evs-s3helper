@@ -63,7 +63,9 @@ func main() {
 	initRuntime()
 
 	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(forwardToS3))
+
+	mux.Handle("/avod/", http.HandlerFunc(forwardToS3ForAd))
+	mux.Handle("/", http.HandlerFunc(forwardToS3ForMedia))
 
 	if *pprofFlag {
 		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
