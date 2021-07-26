@@ -4,3 +4,4 @@ s3-helper/s3-helper
 *.coverprofile
 *coverage.out
 vendor/
+s3-helper

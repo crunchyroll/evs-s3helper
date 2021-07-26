@@ -2,56 +2,18 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
-	"net/http/pprof"
-	"os"
-	"os/signal"
-	"path"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
-	"github.com/crunchyroll/evs-common/config"
 	"github.com/crunchyroll/go-aws-auth"
-
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
-// Default config file
-const configFileDefault = "/etc/s3-helper.yml"
-
-// Config holds the global config
-type Config struct {
-	Listen string `yaml:"listen"`
-
-	Concurrency int `optional:"true"`
-
-	S3Timeout time.Duration `yaml:"s3_timeout"`
-	S3Retries int           `yaml:"s3_retries"`
-
-	S3Region string `yaml:"s3_region"`
-	S3Bucket string `yaml:"s3_bucket"`
-	S3Path   string `yaml:"s3_prefix" optional:"true"`
-	LogLevel string `optional:"true"`
-}
-
-const defaultConfValues = `
-    listen: "127.0.0.1:8080"
-    loglevel: "error"
-    s3_timeout:  5s
-    s3_retries:  5
-    concurrency:   0
-`
-
-var conf Config
-var progName string
 var statRate float32 = 1
 
 // List of headers to forward in response
@@ -77,7 +39,6 @@ func initRuntime() {
 	}
 	log.Info().Msg(fmt.Sprintf("Setting thread concurrency to %d", conc))
 	runtime.GOMAXPROCS(conc)
-
 }
 
 func forwardToS3(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +147,6 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 	// to the client. if we have a failure, we can't notify
 	// the client, this is a poor design with potential
 	// silent truncation of the output.
-	//
 	w.WriteHeader(resp.StatusCode)
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
@@ -218,71 +178,4 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 			Int64("recv", bytes).
 			Msg("Bad connection status response code")
 	}
-}
-
-func main() {
-	zerolog.TimeFieldFormat = ""
-	rand.Seed(time.Now().UnixNano())
-
-	progName = path.Base(os.Args[0])
-
-	configFile := flag.String("config", configFileDefault, "config file to use")
-	pprofFlag := flag.Bool("pprof", false, "enable pprof")
-	flag.Parse()
-
-	if !config.Load(*configFile, defaultConfValues, &conf) {
-		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating", *configFile))
-		return
-	}
-	if conf.LogLevel == "error" {
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	} else if conf.LogLevel == "warn" {
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	} else if conf.LogLevel == "info" {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	} else if conf.LogLevel == "debug" {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else if conf.LogLevel == "panic" {
-		zerolog.SetGlobalLevel(zerolog.PanicLevel)
-	} else if conf.LogLevel == "fatal" {
-		zerolog.SetGlobalLevel(zerolog.FatalLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-		log.Error().Msg(fmt.Sprintf("Bad loglevel given %s - defaulting to Warn level", conf.LogLevel))
-	}
-
-	log.Info().Msg("Starting up")
-	defer log.Info().Msg("Shutting down")
-
-	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
-
-	initRuntime()
-
-	// nr := newrelic.NewNewRelic(&conf.NewRelic)
-	mux := http.NewServeMux()
-
-	// mux.Handle(nr.MonitorHandler("/", http.HandlerFunc(forwardToS3)))
-	mux.Handle("/", http.HandlerFunc(forwardToS3))
-
-	if *pprofFlag {
-		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		log.Info().Msg("pprof is enabled")
-	}
-
-	log.Info().Msg(fmt.Sprintf("Accepting connections on %v", conf.Listen))
-
-	go func() {
-		errLNS := http.ListenAndServe(conf.Listen, mux)
-		if errLNS != nil {
-			log.Error().Msg(fmt.Sprintf("Failure starting up %v", errLNS))
-			os.Exit(1)
-		}
-	}()
-
-	stopSignals := make(chan os.Signal, 1)
-	signal.Notify(stopSignals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
-	<-stopSignals
 }
