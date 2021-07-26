@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crunchyroll/evs-s3helper/s3client"
 	awsauth "github.com/crunchyroll/go-aws-auth"
 	"github.com/rs/zerolog/log"
 )
@@ -41,7 +40,7 @@ func initRuntime() {
 	runtime.GOMAXPROCS(conc)
 }
 
-func forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
+func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", serverName)
 
 	if r.Method != "GET" && r.Method != "HEAD" {
@@ -50,8 +49,8 @@ func forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make sure that Remote Address is 127.0.0.1 so it comes off a local proxy
-	a := strings.SplitN(r.RemoteAddr, ":", 2)
-	if len(a) != 2 || a[0] != "127.0.0.1" {
+	addr := strings.SplitN(r.RemoteAddr, ":", 2)
+	if len(addr) != 2 || addr[0] != "127.0.0.1" {
 		w.WriteHeader(403)
 		return
 	}
@@ -62,7 +61,7 @@ func forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	logger := log.With().
 		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
 
-	getObject, getErr := s3client.GetObject(conf.S3AdBucket, s3Path, byterange)
+	getObject, getErr := a.s3Client.GetObject(conf.S3AdBucket, s3Path, byterange)
 	if getErr != nil {
 		logger.Error().
 			Str("error", getErr.Error()).

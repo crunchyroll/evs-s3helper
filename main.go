@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
-	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"path"
@@ -38,6 +36,8 @@ func main() {
 		log.Error().Msg(fmt.Sprintf("Unable to load config from %s - terminating", *configFile))
 		return
 	}
+	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
+
 	if conf.LogLevel == "error" {
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	} else if conf.LogLevel == "warn" {
@@ -55,35 +55,9 @@ func main() {
 		log.Error().Msg(fmt.Sprintf("Bad loglevel given %s - defaulting to Warn level", conf.LogLevel))
 	}
 
-	log.Info().Msg("Starting up")
-	defer log.Info().Msg("Shutting down")
-
-	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
-
-	initRuntime()
-
-	mux := http.NewServeMux()
-
-	mux.Handle("/avod/", http.HandlerFunc(forwardToS3ForAd))
-	mux.Handle("/", http.HandlerFunc(forwardToS3ForMedia))
-
-	if *pprofFlag {
-		mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		log.Info().Msg("pprof is enabled")
-	}
-
-	log.Info().Msg(fmt.Sprintf("Accepting connections on %v", conf.Listen))
-
-	go func() {
-		errLNS := http.ListenAndServe(conf.Listen, mux)
-		if errLNS != nil {
-			log.Error().Msg(fmt.Sprintf("Failure starting up %v", errLNS))
-			os.Exit(1)
-		}
-	}()
+	api := App{}
+	api.Initialize(pprofFlag, conf.S3Region)
+	api.Run(conf.Listen)
 
 	stopSignals := make(chan os.Signal, 1)
 	signal.Notify(stopSignals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)

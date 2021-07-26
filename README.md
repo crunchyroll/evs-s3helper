@@ -55,11 +55,12 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
         name:    <newrelic name, default is "">
         license: <newrelic license, default is "">
 
-    s3_bucket:  <name of S3 bucket to forward object requests to>
-    s3_region:  <region of S3 bucket>
-    s3_path:    <optional prefix to prepend to object requests>
-    s3_retries; <maximum number of S3 retries>
-    s3_timeout: <timeout for S3 requests>
+    s3_bucket:    <name of S3 bucket to forward object requests to>
+    s3_ad_bucket: <name of S3 bucket to forward ad object requests to>
+    s3_region:    <region of S3 bucket>
+    s3_path:      <optional prefix to prepend to object requests>
+    s3_retries:   <maximum number of S3 retries>
+    s3_timeout:   <timeout for S3 requests>
 ```
 
 ## Behavior

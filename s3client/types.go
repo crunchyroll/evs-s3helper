@@ -1,9 +1,38 @@
 package s3client
 
 import (
+	"fmt"
 	"io"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
+
+// S3Client - manages a persistent connection with downstream S3 bucket
+type S3Client struct {
+	s3Manager *s3.S3
+}
+
+// NewS3Client -  creates a new instance for S3Client with a aws session manager
+// embedded inside.
+// The objective of S3Client will allow callers to manager a persistent connection
+// for a given bucket through it's life-time.
+func NewS3Client(region string) (*S3Client, error) {
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config:            aws.Config{Region: aws.String(region)},
+		SharedConfigState: session.SharedConfigEnable,
+	})
+
+	if err != nil {
+		return &S3Client{}, fmt.Errorf("Failed to initiate an S3Client. Error: %+v", err)
+	}
+
+	return &S3Client{
+		s3Manager: s3.New(sess),
+	}, nil
+}
 
 // GetObjectOutput- constructs the output result from S3 GetObject call
 type GetObjectOutput struct {
