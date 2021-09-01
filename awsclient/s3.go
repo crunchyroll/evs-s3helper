@@ -1,4 +1,4 @@
-package s3client
+package awsclient
 
 import (
 	"fmt"
@@ -72,9 +72,6 @@ func (client *S3Client) GetObject(bucket, s3Path, byterange string) (*GetObjectO
 		ContentRange:    result.ContentRange,
 		ContentType:     result.ContentType,
 		ETag:            result.ETag,
-		Expiration:      result.Expiration,
-		LastModified:    result.LastModified,
-		StorageClass:    result.StorageClass,
-		TagCount:        result.TagCount,
-		VersionId:       result.VersionId}, nil
+		VersionId:       result.VersionId,
+	}, nil
 }

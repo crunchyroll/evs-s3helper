@@ -72,10 +72,8 @@ func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(200)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
-	w.Header().Set("Content-Range", *getObject.ContentRange)
 	w.Header().Set("Content-Type", *getObject.ContentType)
 	w.Header().Set("ETag", *getObject.ETag)
-	w.Header().Set("Last-Modified", getObject.LastModified.Format(time.RFC3339))
 
 	io.Copy(w, getObject.Body)
 	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")

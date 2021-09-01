@@ -6,7 +6,7 @@ import (
 	"net/http/pprof"
 	"os"
 
-	"github.com/crunchyroll/evs-s3helper/s3client"
+	"github.com/crunchyroll/evs-s3helper/awsclient"
 	"github.com/rs/zerolog/log"
 )
 
@@ -16,12 +16,12 @@ const PORT = 3300
 // App - a struct to hold the entire application context
 type App struct {
 	router   *http.ServeMux
-	s3Client *s3client.S3Client
+	s3Client *awsclient.S3Client
 }
 
 // Initialize - start the app with a path to config yaml
 func (a *App) Initialize(pprofFlag *bool, s3Region string) {
-	s3Clinet, err := s3client.NewS3Client(s3Region)
+	s3Clinet, err := awsclient.NewS3Client(s3Region)
 	if err != nil {
 		fmt.Printf("App failed to initiate due to invalid S3 client. error: %+v", err)
 		os.Exit(1) // kill the app
