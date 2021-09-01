@@ -97,7 +97,6 @@ func TestS3Client_Failure(t *testing.T) {
 
 	mS3 := mockS3Client{files: dummyFiles}
 	var getInput *s3.GetObjectInput
-	// var getOutput *s3.GetObjectOutput
 	var err error
 
 	getInput = &s3.GetObjectInput{Bucket: aws.String("avod"), Key: aws.String("mediaId-3")}
@@ -108,16 +107,6 @@ func TestS3Client_Failure(t *testing.T) {
 		t.FailNow()
 	}
 
-	/*
-		fmt.Printf("getOutput: %+v", getOutput)
-		if len(*getOutput.ETag) == 0 {
-			t.FailNow()
-		}
-
-		if *getOutput.ContentLength != 0 {
-			t.FailNow()
-		}
-	*/
 	getInput = &s3.GetObjectInput{Bucket: aws.String("avod"), Key: aws.String("mediaId-3"), Range: aws.String("0-10")}
 	_, err = mS3.GetObject(getInput)
 
