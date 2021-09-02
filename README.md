@@ -6,10 +6,6 @@ bucket).
 
 ## Building
 
-The glide vendoring is used by our build system which relies on https URLs and API keys to access private
-repos.  Sometime after making this public we will drop the use of glide for this, at which point we will
-also remove the vendoring from this repo.
-
 Clone this repo, then:
 
 ```
@@ -22,15 +18,29 @@ make build
 Create a config in `s3-helper.yml`.  Start the service with:
 
 ```
-$ ./s3-helper -config s3-helper.yml
+$ ./s3-helper -config=s3-helper.yml
 ```
 
 Run "s3-helper -h" which list possible flags.
 
+## Usage
 
+```
+\\ for  basic get request (goes to the default media bucket)
+127.0.0.1/{bucket-name}/{object-name}
+
+\\ for get request with byte range
+curl -H "range: bytes=0-199" 127.0.0.1/{bucket-name}/{object-name}
+
+\\ basic get request (goes to the ad media bucket)
+127.0.0.1/avod/{bucket-name}/{object-name}
+
+\\ for get request with byte range
+curl -H "range: bytes=0-199" 127.0.0.1/avod/{bucket-name}/{object-name}
+```
 ## Configuration
 
-s3helper reads its configuration from a file in yml format.  The default location is /mob/etc/s3-helper.yml,
+s3helper reads its configuration from a file in yml format.  The default location is /etc/s3-helper.yml,
 but this can be changed with the -config option, e.g. "-config=./test.yml"
 
 ```yml
@@ -45,13 +55,14 @@ but this can be changed with the -config option, e.g. "-config=./test.yml"
         name:    <newrelic name, default is "">
         license: <newrelic license, default is "">
 
-    s3_bucket:  <name of S3 bucket to forward object requests to>
-    s3_region:  <region of S3 bucket>
-    s3_path:    <optional prefix to prepend to object requests>
-    s3_retries; <maximum number of S3 retries>
-    s3_timeout: <timeout for S3 requests>
+    s3_bucket:    <name of S3 bucket to forward object requests to>
+    s3_ad_bucket: <name of S3 bucket to forward ad object requests to>
+    s3_region:    <region of S3 bucket>
+    s3_path:      <optional prefix to prepend to object requests>
+    s3_retries:   <maximum number of S3 retries>
+    s3_timeout:   <timeout for S3 requests>
 ```
-    
+
 ## Behavior
 
 Assume the configuration consists of:

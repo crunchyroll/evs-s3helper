@@ -6,6 +6,9 @@ setup:
 build:
 	GOSUMDB=off GOPROXY=direct go build -o $(APPNAME)
 
+test:
+	go test ./... -v
+
 setup-linters:
 	go get -u github.com/alecthomas/gometalinter
 	go get -u github.com/client9/misspell/cmd/misspell

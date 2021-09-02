@@ -1,4 +1,3 @@
-// s3-helper is used to assist nginx with various AWS related tasks
 package main
 
 import (
@@ -10,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crunchyroll/go-aws-auth"
+	awsauth "github.com/crunchyroll/go-aws-auth"
 	"github.com/rs/zerolog/log"
 )
 
@@ -18,12 +17,12 @@ var statRate float32 = 1
 
 // List of headers to forward in response
 var headerForward = map[string]bool{
-	"Date":           true,
 	"Content-Length": true,
 	"Content-Range":  true,
 	"Content-Type":   true,
-	"Last-Modified":  true,
+	"Date":           true,
 	"ETag":           true,
+	"Last-Modified":  true,
 }
 
 const serverName = "VOD S3 Helper"
@@ -41,7 +40,50 @@ func initRuntime() {
 	runtime.GOMAXPROCS(conc)
 }
 
-func forwardToS3(w http.ResponseWriter, r *http.Request) {
+func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Server", serverName)
+
+	if r.Method != "GET" && r.Method != "HEAD" {
+		w.WriteHeader(405)
+		return
+	}
+
+	// Make sure that Remote Address is 127.0.0.1 so it comes off a local proxy
+	addr := strings.SplitN(r.RemoteAddr, ":", 2)
+	if len(addr) != 2 || addr[0] != "127.0.0.1" {
+		w.WriteHeader(403)
+		return
+	}
+
+	p := []rune(r.URL.Path)
+	s3Path := string(p[6:])
+	byterange := r.Header.Get("Range")
+	logger := log.With().
+		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
+
+	getObject, getErr := a.s3Client.GetObject(conf.S3AdBucket, s3Path, byterange)
+	if getErr != nil {
+		logger.Error().
+			Str("error", getErr.Error()).
+			Msg(fmt.Sprintf("s3:Get:Err - path:%s ", s3Path))
+		w.WriteHeader(500)
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
+	w.Header().Set("Content-Type", *getObject.ContentType)
+	w.Header().Set("ETag", *getObject.ETag)
+
+	io.Copy(w, getObject.Body)
+	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
+}
+
+func forwardToS3ForMedia(w http.ResponseWriter, r *http.Request) {
+	forwardToS3(w, r, conf.S3Bucket)
+}
+
+func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 	w.Header().Set("Server", serverName)
 
 	if r.Method != "GET" && r.Method != "HEAD" {
@@ -63,7 +105,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request) {
 		Str("range", byterange).
 		Str("method", r.Method).
 		Logger()
-	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, conf.S3Bucket, conf.S3Path, upath)
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, bucket, conf.S3Path, upath)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
 		w.WriteHeader(403)

@@ -3,6 +3,7 @@ module github.com/crunchyroll/evs-s3helper
 go 1.16
 
 require (
+	github.com/aws/aws-sdk-go v1.40.6
 	github.com/crunchyroll/evs-common v0.0.0-20170228001437-6a7a36a07b65
 	github.com/crunchyroll/go-aws-auth v0.0.0-20161116002905-6d1794bd97a6
 	github.com/rs/zerolog v1.13.0
