@@ -1,11 +1,14 @@
 package main
 
 import (
+        "errors"
+        "syscall"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,7 +79,7 @@ func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", *getObject.ETag)
 
 	io.Copy(w, getObject.Body)
-	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
+	logger.Debug().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
 }
 
 func forwardToS3ForMedia(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +132,35 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 	// so we know how much data we need to xfer from s3 to the client.
 	if byterange != "" {
 		r2.Header.Set("Range", byterange)
+		// bytes=Start-Stop  split twice and get Start and Stop byte values
+		s1 := strings.SplitN(byterange, "=", 2)
+		if len(s1) == 2 {
+			// Start-Stop
+			br := strings.SplitN(s1[1], "-", 2)
+			if len(br) == 2 {
+				range1, err1 := strconv.Atoi(br[0])
+				range2, err2 := strconv.Atoi(br[1])
+				if err1 == nil && err2 == nil {
+					if range1 >= 0 && range2 > range1 {
+						bodySize = (int64)(range2-range1) + 1
+					} else {
+						logger.Error().
+							Str("rangeA", br[0]).
+							Str("errorA", err1.Error()).
+							Str("rangeB", br[1]).
+							Str("errorB", err2.Error()).
+							Msg("Invalid byterange request values")
+					}
+				} else {
+					logger.Error().
+						Str("rangeA", br[0]).
+						Str("errorA", err1.Error()).
+						Str("rangeB", br[1]).
+						Str("errorB", err2.Error()).
+						Msg("Failed to derive byterange request values")
+				}
+			}
+		}
 	}
 
 	nretries := 0
@@ -143,7 +175,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
 				Timeout:   conf.S3Timeout,
-				KeepAlive: 1 * time.Second,
+				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			IdleConnTimeout:   conf.S3Timeout,
 			DisableKeepAlives: true, // terminates open connections
@@ -193,20 +225,55 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			logger.Info().
+			logger.Debug().
 				Int64("content-length", bodySize).
 				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
-			bytes, err = io.Copy(w, resp.Body)
+
+			if bodySize > 0 {
+				nretries = 0 // Disable, shouldn't happen in practice
+				for {
+					nretries++
+					var nbytes int64
+					nbytes, err = io.Copy(w, resp.Body)
+					// retry, copy continues
+					// where it left off each round.
+					bytes += nbytes
+					if err == nil || nretries > 0 {
+						// too many retries or success
+						// force the body to close when we fully fail
+						resp.Body.Close()
+						break
+					} else {
+						logger.Error().
+							Str("error", err.Error()).
+							Int64("content-length", bodySize).
+							Int("retry", nretries).
+							Int64("recv", bytes).
+							Int64("recv-total", nbytes).
+							Msg(fmt.Sprintf("Client disconnected, Failed data transfer of #%d bytes", bodySize))
+					}
+				}
+			} else {
+				bytes, err = io.Copy(w, resp.Body)
+			}
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logger.Error().
-					Str("error", err.Error()).
-					Int64("content-length", bodySize).
-					Int64("recv", bytes).
-					Msg("Failed to copy body")
+                            if errors.Is(err, syscall.EPIPE) {
+                                    logger.Debug().
+                                            Str("warning", err.Error()).
+                                            Int64("content-length", bodySize).
+                                            Int64("recv", bytes).
+                                            Msg("Client Disconnected, copy body truncated.")
+                            } else {
+                                    logger.Error().
+                                            Str("error", err.Error()).
+                                            Int64("content-length", bodySize).
+                                            Int64("recv", bytes).
+                                            Msg("Failed to copy body to client, giving up.")
+                            }
 			} else {
-				logger.Info().
+				logger.Debug().
 					Int64("content-length", bodySize).
 					Int64("recv", bytes).
 					Msg("Success copying body")

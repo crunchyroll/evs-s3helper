@@ -1,0 +1,13 @@
+    concurrency: 0
+    listen: "127.0.0.1:8001"
+    newrelic:
+        license: ced38cffba582988abb177c7b8677d0252dbNRAL
+        name: "proto0-vod-s3helper"
+    s3_timeout: 30s
+    s3_retries: 5
+    s3_region: us-west-2
+    s3_bucket: ellation-cx-proto0-vod-media
+    s3_ad_bucket: ellation-cx-proto0-ad-media
+    statsd_addr: "127.0.0.1:8125" # required for s3-helper to start see VOD-1978
+    statsd_env: proto0
+    loglevel: info
