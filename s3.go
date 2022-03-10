@@ -1,8 +1,7 @@
 package main
 
 import (
-  "errors"
-  "syscall"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,7 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-        "syscall"
+	"syscall"
 	"time"
 
 	awsauth "github.com/crunchyroll/go-aws-auth"
