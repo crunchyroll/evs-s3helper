@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	awsauth "github.com/crunchyroll/go-aws-auth"
@@ -200,11 +202,19 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logger.Error().
-					Str("error", err.Error()).
-					Int64("content-length", bodySize).
-					Int64("recv", bytes).
-					Msg("Failed to copy body")
+				if errors.Is(err, syscall.EPIPE) {
+					logger.Debug().
+						Str("warning", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Client Disconnected, copy body truncated.")
+				} else {
+					logger.Error().
+						Str("error", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Failed to copy body to client, giving up.")
+				}
 			} else {
 				logger.Info().
 					Int64("content-length", bodySize).
