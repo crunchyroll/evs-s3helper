@@ -10,7 +10,6 @@ import (
 	"github.com/crunchyroll/evs-s3helper/awsclient"
 	"github.com/rs/zerolog/log"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
 	nrgorilla "github.com/newrelic/go-agent/v3/integrations/nrgorilla"
@@ -73,10 +72,9 @@ func (a *App) Run(port string) {
 	fmt.Printf("App start up initiated.\n")
 	s := &http.Server{
 		Addr:           port,
-		Handler:        handlers.CORS()(nrgorilla.InstrumentRoutes(a.router, a.nrapp)),
+		Handler:        nrgorilla.InstrumentRoutes(a.router, a.nrapp),
 		ReadTimeout:    120 * time.Second,
 		WriteTimeout:   120 * time.Second,
-		MaxHeaderBytes: 1 << 20,
 	}
 	errLNS := s.ListenAndServe()
 	if errLNS != nil {

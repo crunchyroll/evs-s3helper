@@ -229,33 +229,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 				Int64("content-length", bodySize).
 				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
 
-			if bodySize > 0 {
-				nretries = 0 // Disable, shouldn't happen in practice
-				for {
-					nretries++
-					var nbytes int64
-					nbytes, err = io.Copy(w, resp.Body)
-					// retry, copy continues
-					// where it left off each round.
-					bytes += nbytes
-					if err == nil || nretries > 0 {
-						// too many retries or success
-						// force the body to close when we fully fail
-						resp.Body.Close()
-						break
-					} else {
-						logger.Error().
-							Str("error", err.Error()).
-							Int64("content-length", bodySize).
-							Int("retry", nretries).
-							Int64("recv", bytes).
-							Int64("recv-total", nbytes).
-							Msg(fmt.Sprintf("Client disconnected, Failed data transfer of #%d bytes", bodySize))
-					}
-				}
-			} else {
-				bytes, err = io.Copy(w, resp.Body)
-			}
+			bytes, err = io.Copy(w, resp.Body)
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
