@@ -2,11 +2,6 @@ package main
 
 import "time"
 
-type nrConfig struct {
-	Name    string `yaml:"name"`
-	License string `yaml:"license"`
-}
-
 // Config holds the global config
 type Config struct {
 	Listen string `yaml:"listen"`
@@ -18,19 +13,14 @@ type Config struct {
 	S3Retries  int           `yaml:"s3_retries"`
 	S3Timeout  time.Duration `yaml:"s3_timeout"`
 
-	LogLevel    string `yaml:"loglevel"    optional:"true"`
-	Concurrency int    `yaml:"concurrency" optional:"true"`
-
-	NewRelic nrConfig `yaml:"newrelic"`
+	LogLevel    string `optional:"true"`
+	Concurrency int    `optional:"true"`
 }
 
 const defaultConfValues = `
-    concurrency:   2
     listen: "127.0.0.1:8080"
-    loglevel: "info"
-    s3_timeout:  30s
+    loglevel: "error"
+    s3_timeout:  5s
     s3_retries:  5
-    newrelic:
-        name: "proto0-s3-helper"
-        license: "None"
+    concurrency:   0
 `

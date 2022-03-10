@@ -4,7 +4,7 @@ setup:
 	go mod vendor
 
 build:
-	GOSUMDB=off GOPROXY=direct GOOS=linux GOARCH=amd64 go build -o $(APPNAME)
+	GOSUMDB=off GOPROXY=direct go build -o $(APPNAME)
 
 test:
 	go test ./... -v
