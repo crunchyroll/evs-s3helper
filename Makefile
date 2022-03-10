@@ -6,6 +6,7 @@ setup:
 build:
 	env GOOS=linux GOARCH=amd64 GOSUMDB=off GOPROXY=direct go build -o $(APPNAME)
 
+
 test:
 	go test ./... -v
 

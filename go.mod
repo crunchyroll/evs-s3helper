@@ -6,6 +6,10 @@ require (
 	github.com/aws/aws-sdk-go v1.40.6
 	github.com/crunchyroll/evs-common v0.0.0-20170228001437-6a7a36a07b65
 	github.com/crunchyroll/go-aws-auth v0.0.0-20161116002905-6d1794bd97a6
+	github.com/gorilla/handlers v1.5.1
+	github.com/gorilla/mux v1.8.0
+	github.com/newrelic/go-agent/v3 v3.15.2
+	github.com/newrelic/go-agent/v3/integrations/nrgorilla v1.1.1
 	github.com/rs/zerolog v1.13.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
