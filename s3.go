@@ -1,12 +1,14 @@
 package main
 
 import (
+        "errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"runtime"
 	"strings"
+        "syscall"
 	"time"
 
 	awsauth "github.com/crunchyroll/go-aws-auth"
@@ -76,7 +78,7 @@ func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", *getObject.ETag)
 
 	io.Copy(w, getObject.Body)
-	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
+	logger.Debug().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
 }
 
 func forwardToS3ForMedia(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +121,7 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
 
 	url := r2.URL.String()
-	logger.Info().
+	logger.Debug().
 		Str("url", url).
 		Msg("Received request")
 
@@ -193,20 +195,28 @@ func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
 	var bytes int64
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if r2.Method != "HEAD" {
-			logger.Info().
+			logger.Debug().
 				Int64("content-length", bodySize).
 				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
 			bytes, err = io.Copy(w, resp.Body)
 			if err != nil {
 				// we failed copying the body yet already sent the http header so can't tell
 				// the client that it failed.
-				logger.Error().
-					Str("error", err.Error()).
-					Int64("content-length", bodySize).
-					Int64("recv", bytes).
-					Msg("Failed to copy body")
+				if errors.Is(err, syscall.EPIPE) {
+					logger.Debug().
+						Str("warning", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Client Disconnected, copy body truncated.")
+				} else {
+					logger.Error().
+						Str("error", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Failed to copy body to client, giving up.")
+				}
 			} else {
-				logger.Info().
+				logger.Debug().
 					Int64("content-length", bodySize).
 					Int64("recv", bytes).
 					Msg("Success copying body")

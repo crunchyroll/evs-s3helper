@@ -19,8 +19,8 @@ type Config struct {
 
 const defaultConfValues = `
     listen: "127.0.0.1:8080"
-    loglevel: "error"
-    s3_timeout:  5s
+    loglevel: "info"
+    s3_timeout:  10s
     s3_retries:  5
     concurrency:   0
 `
