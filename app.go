@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/crunchyroll/evs-s3helper/awsclient"
+	newrelic "github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,18 +18,31 @@ const PORT = 3300
 type App struct {
 	router   *http.ServeMux
 	s3Client *awsclient.S3Client
+	nrapp    *newrelic.Application
 }
 
 // Initialize - start the app with a path to config yaml
 func (a *App) Initialize(pprofFlag *bool, s3Region string) {
 	s3Clinet, err := awsclient.NewS3Client(s3Region)
 	if err != nil {
-		fmt.Printf("App failed to initiate due to invalid S3 client. error: %+v", err)
+		fmt.Printf("App failed to initiate due to invalid S3 client. error: %+v\n", err)
 		os.Exit(1) // kill the app
 	}
 
 	a.s3Client = s3Clinet
 	a.router = http.NewServeMux()
+
+	nrapp, nrerr := newrelic.NewApplication(
+		newrelic.ConfigAppName(conf.NewRelic.Name),
+		newrelic.ConfigLicense(conf.NewRelic.License),
+		newrelic.ConfigInfoLogger(os.Stdout),
+		newrelic.ConfigDistributedTracerEnabled(true),
+	)
+	if nil != nrerr {
+		fmt.Println(nrerr)
+		panic(fmt.Sprintf("newrelic is not configured. error: %+v.", nrerr))
+	}
+        a.nrapp = nrapp
 
 	initRuntime()
 
@@ -49,12 +63,12 @@ func (a *App) Initialize(pprofFlag *bool, s3Region string) {
 
 // Run - run the application with loaded App struct
 func (a *App) Run(port string) {
-	fmt.Printf("App start up initiated.")
+	fmt.Printf("App start up initiated.\n")
 	errLNS := http.ListenAndServe(port, a.router)
 	defer fmt.Print("App shutting down")
 
 	if errLNS != nil {
-		fmt.Printf("App failed to start up. Error: %+v", errLNS)
+		fmt.Printf("App failed to start up. Error: %+v\n", errLNS)
 		os.Exit(1)
 	}
 }
