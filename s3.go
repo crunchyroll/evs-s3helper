@@ -44,8 +44,8 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(405)
 		return
 	}
-        s3Path := r.URL.Path
-        s3Bucket := conf.S3Bucket
+	s3Path := r.URL.Path
+	s3Bucket := conf.S3Bucket
 
 	// Make sure that Remote Address is 127.0.0.1 so it comes off a local proxy
 	addr := strings.SplitN(r.RemoteAddr, ":", 2)
@@ -54,11 +54,11 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-        if r.URL.Path[:6] == "/avod/" {
-	        p := []rune(r.URL.Path)
-	        s3Path = string(p[6:])
-                s3Bucket = conf.S3AdBucket
-        }
+	if r.URL.Path[:6] == "/avod/" {
+		p := []rune(r.URL.Path)
+		s3Path = string(p[6:])
+		s3Bucket = conf.S3AdBucket
+	}
 	byterange := r.Header.Get("Range")
 	logger := log.With().
 		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
