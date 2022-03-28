@@ -17,19 +17,20 @@ const PORT = 3300
 // App - a struct to hold the entire application context
 type App struct {
 	router   *http.ServeMux
+	adrouter *http.ServeMux
 	s3Client *awsclient.S3Client
 	nrapp    *newrelic.Application
 }
 
 // Initialize - start the app with a path to config yaml
 func (a *App) Initialize(pprofFlag *bool, s3Region string) {
-	s3Clinet, err := awsclient.NewS3Client(s3Region)
+	s3Client, err := awsclient.NewS3Client(s3Region)
 	if err != nil {
 		fmt.Printf("App failed to initiate due to invalid S3 client. error: %+v\n", err)
 		os.Exit(1) // kill the app
 	}
 
-	a.s3Client = s3Clinet
+	a.s3Client = s3Client
 	a.router = http.NewServeMux()
 
 	nrapp, nrerr := newrelic.NewApplication(
@@ -46,8 +47,7 @@ func (a *App) Initialize(pprofFlag *bool, s3Region string) {
 
 	initRuntime()
 
-	a.router.Handle("/avod/", http.HandlerFunc(a.forwardToS3ForAd))
-	a.router.Handle("/", http.HandlerFunc(forwardToS3ForMedia))
+	a.router.Handle("/", http.HandlerFunc(a.proxyS3Media))
 
 	if *pprofFlag {
 		a.router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
