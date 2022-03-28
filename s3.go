@@ -40,6 +40,8 @@ func initRuntime() {
 }
 
 func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
+	nrtxn := a.nrapp.StartTransaction("S3Helper:proxyS3Media")
+	defer nrtxn.End()
 	w.Header().Set("Server", serverName)
 
 	if r.Method != "GET" && r.Method != "HEAD" {
@@ -67,11 +69,16 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
 	if getErr != nil {
+		a.nrapp.RecordCustomMetric("s3-helper:s3error", float64(0))
+		msg := fmt.Sprintf("[ERROR] s3:Get:Err - path:%s %v\n", s3Path, getErr)
+		nrtxn.NoticeError(errors.New(msg))
 		logger.Error().
 			Str("error", getErr.Error()).
-			Msg(fmt.Sprintf("s3:Get:Err - path:%s ", s3Path))
+			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
 		w.WriteHeader(500)
 		return
+	} else {
+		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
 
 	w.WriteHeader(200)
@@ -84,23 +91,28 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		// we failed copying the body yet already sent the http header so can't tell
 		// the client that it failed.
 		if errors.Is(err, syscall.EPIPE) {
+			a.nrapp.RecordCustomMetric("s3-helper:disconnect", float64(0))
 			logger.Debug().
 				Str("warning", err.Error()).
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
-				Msg("s3:get - client disconnect")
+				Msg("nginx:bodywrite - client disconnect")
 		} else {
+			a.nrapp.RecordCustomMetric("s3-helper:failure", float64(0))
+			msg := fmt.Sprintf("[ERROR] Nginx:Write:Err - path:%s %v\n", s3Path, err)
+			nrtxn.NoticeError(errors.New(msg))
 			logger.Error().
 				Str("error", err.Error()).
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
-				Msg("s3:get - failure")
+				Msg("nginx:bodywrite - failure")
 		}
 	} else {
+		a.nrapp.RecordCustomMetric("s3-helper:success", float64(0))
 		logger.Debug().
 			Str("path", s3Path).
 			Int64("content-length", *getObject.ContentLength).
 			Int64("recv", bytes).
-			Msg("s3:get - success")
+			Msg("nginx:bodywrite - success")
 	}
 }
