@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/rs/zerolog/log"
 )
@@ -77,6 +79,28 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", *getObject.ContentType)
 	w.Header().Set("ETag", *getObject.ETag)
 
-	io.Copy(w, getObject.Body)
-	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
+	bytes, err := io.Copy(w, getObject.Body)
+	if err != nil {
+		// we failed copying the body yet already sent the http header so can't tell
+		// the client that it failed.
+		if errors.Is(err, syscall.EPIPE) {
+			logger.Debug().
+				Str("warning", err.Error()).
+				Int64("content-length", *getObject.ContentLength).
+				Int64("recv", bytes).
+				Msg("s3:get - client disconnect")
+		} else {
+			logger.Error().
+				Str("error", err.Error()).
+				Int64("content-length", *getObject.ContentLength).
+				Int64("recv", bytes).
+				Msg("s3:get - failure")
+		}
+	} else {
+		logger.Debug().
+			Str("path", s3Path).
+			Int64("content-length", *getObject.ContentLength).
+			Int64("recv", bytes).
+			Msg("s3:get - success")
+	}
 }
