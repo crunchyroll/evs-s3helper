@@ -42,7 +42,7 @@ func (a *App) Initialize(pprofFlag *bool, s3Region string) {
 		fmt.Println(nrerr)
 		panic(fmt.Sprintf("newrelic is not configured. error: %+v.", nrerr))
 	}
-        a.nrapp = nrapp
+	a.nrapp = nrapp
 
 	initRuntime()
 
