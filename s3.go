@@ -131,6 +131,16 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
 
+	// Only return headers
+	if r.Method == "HEAD" {
+		w.WriteHeader(200)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
+		w.Header().Set("Content-Type", *getObject.ContentType)
+		w.Header().Set("ETag", *getObject.ETag)
+		return
+	}
+
+	// Copy S3 body into buffer
 	var buf *bytes.Buffer
 	buf = new(bytes.Buffer)
 	bytes, err := io.Copy(buf, getObject.Body)
