@@ -78,6 +78,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		return
 	} else {
+		defer getObject.Body.Close()
 		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
 
