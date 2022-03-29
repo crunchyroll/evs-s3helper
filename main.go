@@ -38,21 +38,21 @@ func main() {
 	}
 	log.Info().Msg(fmt.Sprintf("Loaded config from %s", *configFile))
 
-	if conf.LogLevel == "error" {
+	if conf.Logging.Level == "error" {
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	} else if conf.LogLevel == "warn" {
+	} else if conf.Logging.Level == "warn" {
 		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	} else if conf.LogLevel == "info" {
+	} else if conf.Logging.Level == "info" {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	} else if conf.LogLevel == "debug" {
+	} else if conf.Logging.Level == "debug" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else if conf.LogLevel == "panic" {
+	} else if conf.Logging.Level == "panic" {
 		zerolog.SetGlobalLevel(zerolog.PanicLevel)
-	} else if conf.LogLevel == "fatal" {
+	} else if conf.Logging.Level == "fatal" {
 		zerolog.SetGlobalLevel(zerolog.FatalLevel)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-		log.Error().Msg(fmt.Sprintf("Bad loglevel given %s - defaulting to Warn level", conf.LogLevel))
+		log.Error().Msg(fmt.Sprintf("Bad loglevel given %s - defaulting to Warn level", conf.Logging.Level))
 	}
 
 	api := App{}
