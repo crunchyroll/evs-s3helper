@@ -17,7 +17,6 @@ const PORT = 3300
 // App - a struct to hold the entire application context
 type App struct {
 	router   *http.ServeMux
-	adrouter *http.ServeMux
 	s3Client *awsclient.S3Client
 	nrapp    *newrelic.Application
 }
