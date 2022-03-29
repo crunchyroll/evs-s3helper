@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/rs/zerolog/log"
 )
 
@@ -69,13 +71,58 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
 	if getErr != nil {
-		a.nrapp.RecordCustomMetric("s3-helper:s3error", float64(0))
-		msg := fmt.Sprintf("[ERROR] s3:Get:Err - path:%s %v\n", s3Path, getErr)
+		// Casting to the awserr.Error type will allow you to inspect the error
+		// code returned by the service in code. The error code can be used
+		// to switch on context specific functionality. In this case a context
+		// specific error message is printed to the user based on the bucket
+		// and key existing.
+		//
+		// For information on other S3 API error codes see:
+		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+		//
+		// fmt.Println(awsErr.Code(), awsErr.Message(), awsErr.OrigErr())
+		reqErr := 500 // return the actual error rather than generic 500
+		msg := ""
+		if aerr, ok := getErr.(awserr.Error); ok {
+			if reqErr, ok := getErr.(awserr.RequestFailure); ok {
+				if reqErr.StatusCode() == 503 {
+					// AWS SlowDown Throttling S3 Bucket
+					// Trick taken from: https://github.com/go-spatial/tegola/issues/458
+					a.nrapp.RecordCustomMetric("s3-helper:s3slowdown503", float64(0))
+					msg = fmt.Sprintf("SlowDown Throttling on %s/%s", s3Bucket, s3Path)
+					logger.Error().
+						Str("error", getErr.Error()).
+						Str("details", msg).
+						Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+				} else if reqErr.StatusCode() == 404 {
+					a.nrapp.RecordCustomMetric("s3-helper:s3status404", float64(0))
+				} else {
+					a.nrapp.RecordCustomMetric(fmt.Sprintf("s3-helper:s3status%d", reqErr.StatusCode()), float64(0))
+				}
+			}
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchBucket:
+				msg = fmt.Sprintf("bucket %s does not exist", s3Bucket)
+				a.nrapp.RecordCustomMetric("s3-helper:s3nosuchbucket", float64(0))
+			case s3.ErrCodeNoSuchKey:
+				msg = fmt.Sprintf("object with key %s does not exist in bucket %s", s3Path, s3Bucket)
+				a.nrapp.RecordCustomMetric("s3-helper:s3nosuchkey", float64(0))
+			default:
+				msg = fmt.Sprintf("s3 unknown error: %v %v %v", aerr.Code(), aerr.Message(), aerr.OrigErr())
+				a.nrapp.RecordCustomMetric("s3-helper:s3unknownerror", float64(0))
+			}
+			logger.Error().
+				Str("error", getErr.Error()).
+				Str("details", msg).
+				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+		}
+		msg = fmt.Sprintf("[ERROR] s3:Get:Err - path:%s %v\n", s3Path, getErr)
 		nrtxn.NoticeError(errors.New(msg))
 		logger.Error().
 			Str("error", getErr.Error()).
+			Str("details", msg).
 			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		w.WriteHeader(500)
+		w.WriteHeader(reqErr) // Return same error code back from S3 to Nginx
 		return
 	} else {
 		defer getObject.Body.Close()
@@ -98,6 +145,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
 				Msg("nginx:bodywrite - client disconnect")
+			return // Client Disconnected
 		} else {
 			a.nrapp.RecordCustomMetric("s3-helper:failure", float64(0))
 			msg := fmt.Sprintf("[ERROR] Nginx:Write:Err - path:%s %v\n", s3Path, err)
@@ -107,6 +155,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
 				Msg("nginx:bodywrite - failure")
+			return // Unknown Failure
 		}
 	} else {
 		a.nrapp.RecordCustomMetric("s3-helper:success", float64(0))
@@ -115,5 +164,6 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			Int64("content-length", *getObject.ContentLength).
 			Int64("recv", bytes).
 			Msg("nginx:bodywrite - success")
+		return // Success
 	}
 }
