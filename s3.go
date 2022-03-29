@@ -81,10 +81,11 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 		//
 		// fmt.Println(awsErr.Code(), awsErr.Message(), awsErr.OrigErr())
-		reqErr := 500 // return the actual error rather than generic 500
+		returnCode := 500 // return the actual error rather than generic 500
 		msg := ""
 		if aerr, ok := getErr.(awserr.Error); ok {
 			if reqErr, ok := getErr.(awserr.RequestFailure); ok {
+                                returnCode = reqErr.StatusCode()
 				if reqErr.StatusCode() == 503 {
 					// AWS SlowDown Throttling S3 Bucket
 					// Trick taken from: https://github.com/go-spatial/tegola/issues/458
@@ -122,7 +123,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			Str("error", getErr.Error()).
 			Str("details", msg).
 			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		w.WriteHeader(reqErr) // Return same error code back from S3 to Nginx
+		w.WriteHeader(returnCode) // Return same error code back from S3 to Nginx
 		return
 	} else {
 		defer getObject.Body.Close()
