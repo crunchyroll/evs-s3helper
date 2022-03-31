@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -139,16 +140,11 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(200)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
-	w.Header().Set("Content-Type", *getObject.ContentType)
-	w.Header().Set("ETag", *getObject.ETag)
-
 	// Copy S3 body into buffer
-	bytes, err := io.Copy(w, getObject.Body)
+	var buf *bytes.Buffer
+	buf = new(bytes.Buffer)
+	bytes, err := io.Copy(buf, getObject.Body)
 	if err != nil {
-		// we failed copying the body yet already sent the http header so can't tell
-		// the client that it failed.
 		if errors.Is(err, syscall.EPIPE) {
 			a.nrapp.RecordCustomMetric("s3-helper:disconnect", float64(0))
 			logger.Error().
@@ -156,6 +152,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
 				Msg("s3:bodyread- s3 disconnect on body copy")
+			w.WriteHeader(500)
 			return // S3 Disconnected during body copy
 		} else {
 			a.nrapp.RecordCustomMetric("s3-helper:failure", float64(0))
@@ -166,9 +163,39 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Int64("content-length", *getObject.ContentLength).
 				Int64("recv", bytes).
 				Msg("s3:bodyread- failure reading s3 body")
+			w.WriteHeader(500)
 			return // S3 body copy Unknown Failure
 		}
 	} else {
+		w.WriteHeader(200)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
+		w.Header().Set("Content-Type", *getObject.ContentType)
+		w.Header().Set("ETag", *getObject.ETag)
+		bytes, err := io.Copy(w, buf)
+		if err != nil {
+			// we failed copying the body yet already sent the http header so can't tell
+			// the client that it failed.
+			if errors.Is(err, syscall.EPIPE) {
+				a.nrapp.RecordCustomMetric("nginx:disconnect", float64(0))
+				logger.Debug().
+					Str("warning", err.Error()).
+					Int64("content-length", *getObject.ContentLength).
+					Int64("recv", bytes).
+					Msg("nginx:bodywrite - client disconnect on body copy to nginx")
+				return // Client Disconnected
+			} else {
+				a.nrapp.RecordCustomMetric("nginx:failure", float64(0))
+				msg := fmt.Sprintf("[ERROR] Nginx:Write:Err - path:%s %v\n", s3Path, err)
+				nrtxn.NoticeError(errors.New(msg))
+				logger.Error().
+					Str("error", err.Error()).
+					Int64("content-length", *getObject.ContentLength).
+					Int64("recv", bytes).
+					Msg("nginx:bodywrite - failure copying body to nginx")
+				return // Unknown Failure
+			}
+		}
+
 		a.nrapp.RecordCustomMetric("s3-helper:success", float64(0))
 		logger.Debug().
 			Str("path", s3Path).
