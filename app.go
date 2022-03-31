@@ -46,7 +46,7 @@ func (a *App) Initialize(pprofFlag *bool, s3Region string) {
 
 	initRuntime()
 
-        // Use /avod/ for Ads config bucket vs. / for content bucket
+	// Use /avod/ for Ads config bucket vs. / for content bucket
 	a.router.Handle("/", http.HandlerFunc(a.proxyS3Media))
 
 	if *pprofFlag {

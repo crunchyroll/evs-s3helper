@@ -4,10 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
+
+	awsauth "github.com/crunchyroll/go-aws-auth"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -69,7 +73,52 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	logger := log.With().
 		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
 
-	getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
+	// TODO: This will use up the RAM in production
+	//getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
+
+	// Bypass AWS SDK for S3 GetObject() call, sign and get the object manually via HTTP
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, s3Bucket, conf.S3Path, s3Path)
+	r2, err := http.NewRequest(r.Method, s3url, nil)
+	if err != nil {
+		w.WriteHeader(403)
+		logger.Error().
+			Str("error", err.Error()).
+			Str("url", s3url).
+			Msg("Failed to create GET request to S3")
+		return
+	}
+
+	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
+
+	r2.Header.Set("Host", r2.URL.Host)
+	// parse the byterange request header to derive the content-length requested
+	// so we know how much data we need to xfer from s3 to the client.
+	if byterange != "" {
+		r2.Header.Set("Range", byterange)
+	}
+
+	var resp *http.Response
+
+	// setup client outside of for loop since we don't
+	// need to define it multiple times and failures
+	// shouldn't need a new client
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 1 * time.Second,
+			}).DialContext,
+			IdleConnTimeout:   30 * time.Second,
+			DisableKeepAlives: true, // terminates open connections
+		}}
+
+	resp, getErr := client.Do(r2)
+
+	// Bail out on non-timeout error, or too many timeouts.
+	//netErr, ok := err.(net.Error)
+	//isTimeout := ok && netErr.Timeout()
+
 	if getErr != nil {
 		// Casting to the awserr.Error type will allow you to inspect the error
 		// code returned by the service in code. The error code can be used
@@ -126,26 +175,23 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(returnCode) // Return same error code back from S3 to Nginx
 		return
 	} else {
-		defer getObject.Body.Close()
+		//defer getObject.Body.Close()
+		defer resp.Body.Close()
 		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
 
+	w.WriteHeader(200)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
+	w.Header().Set("Content-Type", resp.Header.Get("Content-type"))
+	//w.Header().Set("ETag", *resp.ETag)
+
 	// Only return headers
 	if r.Method == "HEAD" {
-		w.WriteHeader(200)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
-		w.Header().Set("Content-Type", *getObject.ContentType)
-		w.Header().Set("ETag", *getObject.ETag)
 		return
 	}
 
-	w.WriteHeader(200)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
-	w.Header().Set("Content-Type", *getObject.ContentType)
-	w.Header().Set("ETag", *getObject.ETag)
-
 	// Copy S3 body into buffer
-	bytes, err := io.Copy(w, getObject.Body)
+	bytes, err := io.Copy(w, resp.Body)
 	if err != nil {
 		// we failed copying the body yet already sent the http header so can't tell
 		// the client that it failed.
@@ -153,7 +199,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			a.nrapp.RecordCustomMetric("s3-helper:disconnect", float64(0))
 			logger.Error().
 				Str("warning", err.Error()).
-				Int64("content-length", *getObject.ContentLength).
+				Int64("content-length", resp.ContentLength).
 				Int64("recv", bytes).
 				Msg("s3:bodyread- s3 disconnect on body copy")
 			return // S3 Disconnected during body copy
@@ -163,7 +209,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			nrtxn.NoticeError(errors.New(msg))
 			logger.Error().
 				Str("error", err.Error()).
-				Int64("content-length", *getObject.ContentLength).
+				Int64("content-length", resp.ContentLength).
 				Int64("recv", bytes).
 				Msg("s3:bodyread- failure reading s3 body")
 			return // S3 body copy Unknown Failure
@@ -172,7 +218,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		a.nrapp.RecordCustomMetric("s3-helper:success", float64(0))
 		logger.Debug().
 			Str("path", s3Path).
-			Int64("content-length", *getObject.ContentLength).
+			Int64("content-length", resp.ContentLength).
 			Int64("recv", bytes).
 			Msg("nginx:bodywrite - success")
 		return // Success
