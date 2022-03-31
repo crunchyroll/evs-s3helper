@@ -176,7 +176,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			Str("s3_statuscode: ", fmt.Sprintf("%d", returnCode)).
 			Str("http_statuscode", fmt.Sprintf("%d", resp.StatusCode)).
 			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		if returnCode == 200 {
+		if returnCode != 503 {
 			returnCode = resp.StatusCode
 		}
 		w.WriteHeader(returnCode) // Return same error code back from S3 to Nginx
