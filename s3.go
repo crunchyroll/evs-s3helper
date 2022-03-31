@@ -149,6 +149,8 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				} else {
 					a.nrapp.RecordCustomMetric(fmt.Sprintf("s3-helper:s3status%d", reqErr.StatusCode()), float64(0))
 				}
+			} else {
+				returnCode = resp.StatusCode
 			}
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket:
