@@ -4,13 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
+	awsauth "github.com/crunchyroll/go-aws-auth"
 	"github.com/rs/zerolog/log"
 )
 
@@ -41,17 +42,13 @@ func initRuntime() {
 	runtime.GOMAXPROCS(conc)
 }
 
-func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
-	nrtxn := a.nrapp.StartTransaction("S3Helper:proxyS3Media")
-	defer nrtxn.End()
+func (a *App) forwardToS3ForAd(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Server", serverName)
 
 	if r.Method != "GET" && r.Method != "HEAD" {
 		w.WriteHeader(405)
 		return
 	}
-	s3Path := r.URL.Path
-	s3Bucket := conf.S3Bucket
 
 	// Make sure that Remote Address is 127.0.0.1 so it comes off a local proxy
 	addr := strings.SplitN(r.RemoteAddr, ":", 2)
@@ -60,82 +57,18 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path[:6] == "/avod/" {
-		p := []rune(r.URL.Path)
-		s3Path = string(p[6:])
-		s3Bucket = conf.S3AdBucket
-	}
+	p := []rune(r.URL.Path)
+	s3Path := string(p[6:])
 	byterange := r.Header.Get("Range")
 	logger := log.With().
 		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
 
-	getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
+	getObject, getErr := a.s3Client.GetObject(conf.S3AdBucket, s3Path, byterange)
 	if getErr != nil {
-		// Casting to the awserr.Error type will allow you to inspect the error
-		// code returned by the service in code. The error code can be used
-		// to switch on context specific functionality. In this case a context
-		// specific error message is printed to the user based on the bucket
-		// and key existing.
-		//
-		// For information on other S3 API error codes see:
-		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-		//
-		// fmt.Println(awsErr.Code(), awsErr.Message(), awsErr.OrigErr())
-		returnCode := 500 // return the actual error rather than generic 500
-		msg := ""
-		if aerr, ok := getErr.(awserr.Error); ok {
-			if reqErr, ok := getErr.(awserr.RequestFailure); ok {
-				returnCode = reqErr.StatusCode()
-				if reqErr.StatusCode() == 503 {
-					// AWS SlowDown Throttling S3 Bucket
-					// Trick taken from: https://github.com/go-spatial/tegola/issues/458
-					a.nrapp.RecordCustomMetric("s3-helper:s3slowdown503", float64(0))
-					msg = fmt.Sprintf("SlowDown Throttling on %s/%s", s3Bucket, s3Path)
-					logger.Error().
-						Str("error", getErr.Error()).
-						Str("details", msg).
-						Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-				} else if reqErr.StatusCode() == 404 {
-					a.nrapp.RecordCustomMetric("s3-helper:s3status404", float64(0))
-				} else {
-					a.nrapp.RecordCustomMetric(fmt.Sprintf("s3-helper:s3status%d", reqErr.StatusCode()), float64(0))
-				}
-			}
-			switch aerr.Code() {
-			case s3.ErrCodeNoSuchBucket:
-				msg = fmt.Sprintf("bucket %s does not exist", s3Bucket)
-				a.nrapp.RecordCustomMetric("s3-helper:s3nosuchbucket", float64(0))
-			case s3.ErrCodeNoSuchKey:
-				msg = fmt.Sprintf("object with key %s does not exist in bucket %s", s3Path, s3Bucket)
-				a.nrapp.RecordCustomMetric("s3-helper:s3nosuchkey", float64(0))
-			default:
-				msg = fmt.Sprintf("s3 unknown error: %v %v %v", aerr.Code(), aerr.Message(), aerr.OrigErr())
-				a.nrapp.RecordCustomMetric("s3-helper:s3unknownerror", float64(0))
-			}
-			logger.Error().
-				Str("error", getErr.Error()).
-				Str("details", msg).
-				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		}
-		msg = fmt.Sprintf("[ERROR] s3:Get:Err - path:%s %v\n", s3Path, getErr)
-		nrtxn.NoticeError(errors.New(msg))
 		logger.Error().
 			Str("error", getErr.Error()).
-			Str("details", msg).
-			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		w.WriteHeader(returnCode) // Return same error code back from S3 to Nginx
-		return
-	} else {
-		defer getObject.Body.Close()
-		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
-	}
-
-	// Only return headers
-	if r.Method == "HEAD" {
-		w.WriteHeader(200)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", *getObject.ContentLength))
-		w.Header().Set("Content-Type", *getObject.ContentType)
-		w.Header().Set("ETag", *getObject.ETag)
+			Msg(fmt.Sprintf("s3:Get:Err - path:%s ", s3Path))
+		w.WriteHeader(500)
 		return
 	}
 
@@ -144,37 +77,157 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", *getObject.ContentType)
 	w.Header().Set("ETag", *getObject.ETag)
 
-	// Copy S3 body into buffer
-	bytes, err := io.Copy(w, getObject.Body)
+	io.Copy(w, getObject.Body)
+	logger.Info().Str("path", s3Path).Int64("content-length", *getObject.ContentLength).Msg("s3:get - success")
+}
+
+func forwardToS3ForMedia(w http.ResponseWriter, r *http.Request) {
+	forwardToS3(w, r, conf.S3Bucket)
+}
+
+func forwardToS3(w http.ResponseWriter, r *http.Request, bucket string) {
+	w.Header().Set("Server", serverName)
+
+	if r.Method != "GET" && r.Method != "HEAD" {
+		w.WriteHeader(405)
+		return
+	}
+
+	// Make sure that RemoteAddr is 127.0.0.1 so it comes off a local proxy
+	a := strings.SplitN(r.RemoteAddr, ":", 2)
+	if len(a) != 2 || a[0] != "127.0.0.1" {
+		w.WriteHeader(403)
+		return
+	}
+
+	upath := r.URL.Path
+	byterange := r.Header.Get("Range")
+	logger := log.With().
+		Str("object", upath).
+		Str("range", byterange).
+		Str("method", r.Method).
+		Logger()
+	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, bucket, conf.S3Path, upath)
+	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
-		// we failed copying the body yet already sent the http header so can't tell
-		// the client that it failed.
-		if errors.Is(err, syscall.EPIPE) {
-			a.nrapp.RecordCustomMetric("s3-helper:disconnect", float64(0))
-			logger.Error().
-				Str("warning", err.Error()).
-				Int64("content-length", *getObject.ContentLength).
-				Int64("recv", bytes).
-				Msg("s3:bodyread- s3 disconnect on body copy")
-			return // S3 Disconnected during body copy
-		} else {
-			a.nrapp.RecordCustomMetric("s3-helper:failure", float64(0))
-			msg := fmt.Sprintf("[ERROR] S3:Read:Err - path:%s %v\n", s3Path, err)
-			nrtxn.NoticeError(errors.New(msg))
+		w.WriteHeader(403)
+		logger.Error().
+			Str("error", err.Error()).
+			Str("url", s3url).
+			Msg("Failed to create GET request")
+		return
+	}
+
+	r2 = awsauth.SignForRegion(r2, conf.S3Region, "s3")
+
+	url := r2.URL.String()
+	logger.Info().
+		Str("url", url).
+		Msg("Received request")
+
+	var bodySize int64
+	r2.Header.Set("Host", r2.URL.Host)
+	// parse the byterange request header to derive the content-length requested
+	// so we know how much data we need to xfer from s3 to the client.
+	if byterange != "" {
+		r2.Header.Set("Range", byterange)
+	}
+
+	nretries := 0
+
+	var resp *http.Response
+
+	// setup client outside of for loop since we don't
+	// need to define it multiple times and failures
+	// shouldn't need a new client
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   conf.S3Timeout,
+				KeepAlive: 1 * time.Second,
+			}).DialContext,
+			IdleConnTimeout:   conf.S3Timeout,
+			DisableKeepAlives: true, // terminates open connections
+		}}
+
+	for {
+		resp, err = client.Do(r2)
+		if err == nil {
+			break
+		}
+
+		// Bail out on non-timeout error, or too many timeouts.
+		netErr, ok := err.(net.Error)
+		isTimeout := ok && netErr.Timeout()
+
+		if nretries >= conf.S3Retries || !isTimeout {
 			logger.Error().
 				Str("error", err.Error()).
-				Int64("content-length", *getObject.ContentLength).
-				Int64("recv", bytes).
-				Msg("s3:bodyread- failure reading s3 body")
-			return // S3 body copy Unknown Failure
+				Msg(fmt.Sprintf("Connection failed after #%d retries", conf.S3Retries))
+			w.WriteHeader(500)
+			return
+		}
+
+		logger.Error().
+			Str("error", err.Error()).
+			Msg(fmt.Sprintf("Connection timeout: retry #%d", nretries))
+		nretries++
+	}
+
+	defer resp.Body.Close()
+
+	header := resp.Header
+	for name, hflag := range headerForward {
+		if hflag {
+			if v := header.Get(name); v != "" {
+				w.Header().Set(name, v)
+			}
+		}
+	}
+
+	// we can't buffer in ram or to disk so write the body
+	// directly to the return body buffer and stream out
+	// to the client. if we have a failure, we can't notify
+	// the client, this is a poor design with potential
+	// silent truncation of the output.
+	w.WriteHeader(resp.StatusCode)
+	var bytes int64
+	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		if r2.Method != "HEAD" {
+			logger.Info().
+				Int64("content-length", bodySize).
+				Msg(fmt.Sprintf("Begin data transfer of #%d bytes", bodySize))
+			bytes, err = io.Copy(w, resp.Body)
+			if err != nil {
+				// we failed copying the body yet already sent the http header so can't tell
+				// the client that it failed.
+				if errors.Is(err, syscall.EPIPE) {
+					logger.Debug().
+						Str("warning", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Client Disconnected, copy body truncated.")
+				} else {
+					logger.Error().
+						Str("error", err.Error()).
+						Int64("content-length", bodySize).
+						Int64("recv", bytes).
+						Msg("Failed to copy body to client, giving up.")
+				}
+			} else {
+				logger.Info().
+					Int64("content-length", bodySize).
+					Int64("recv", bytes).
+					Msg("Success copying body")
+			}
 		}
 	} else {
-		a.nrapp.RecordCustomMetric("s3-helper:success", float64(0))
-		logger.Debug().
-			Str("path", s3Path).
-			Int64("content-length", *getObject.ContentLength).
+		logger.Error().
+			Str("error", fmt.Sprintf("Response Status Code: %d", resp.StatusCode)).
+			Int("statuscode", resp.StatusCode).
+			Int64("content-length", bodySize).
 			Int64("recv", bytes).
-			Msg("nginx:bodywrite - success")
-		return // Success
+			Msg("Bad connection status response code")
 	}
 }
