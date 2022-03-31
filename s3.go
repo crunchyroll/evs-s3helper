@@ -197,7 +197,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		// the client that it failed.
 		if errors.Is(err, syscall.EPIPE) {
 			a.nrapp.RecordCustomMetric("s3-helper:disconnect", float64(0))
-			logger.Error().
+			logger.Debug().
 				Str("warning", err.Error()).
 				Int64("content-length", resp.ContentLength).
 				Int64("recv", bytes).
