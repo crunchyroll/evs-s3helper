@@ -187,13 +187,22 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
 
-	w.WriteHeader(200)
+	header := resp.Header
+	for name, hflag := range headerForward {
+		if hflag {
+			if v := header.Get(name); v != "" {
+				w.Header().Set(name, v)
+			}
+		}
+	}
+
+	w.WriteHeader(resp.StatusCode)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	w.Header().Set("Content-Type", resp.Header.Get("Content-type"))
 	//w.Header().Set("ETag", *resp.ETag)
 
 	// Only return headers
-	if r.Method == "HEAD" {
+	if r2.Method == "HEAD" {
 		return
 	}
 
