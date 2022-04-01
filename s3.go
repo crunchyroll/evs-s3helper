@@ -116,8 +116,27 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	resp, getErr := client.Do(r2)
 
 	// Bail out on non-timeout error, or too many timeouts.
-	//netErr, ok := err.(net.Error)
-	//isTimeout := ok && netErr.Timeout()
+	netErr, ok := err.(net.Error)
+	if netErr != nil {
+		isTimeout := ok && netErr.Timeout()
+		if isTimeout {
+			// Timed out connecting to S3
+			a.nrapp.RecordCustomMetric("s3-helper:timeout", float64(0))
+			msg := fmt.Sprintf("AWS S3 Timeout for %s/%s", s3Bucket, s3Path)
+			logger.Error().
+				Str("error", netErr.Error()).
+				Str("details", msg).
+				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+		} else {
+			// Network Error connecting to S3
+			a.nrapp.RecordCustomMetric("s3-helper:neterror", float64(0))
+			msg := fmt.Sprintf("AWS S3 Network Error for %s/%s", s3Bucket, s3Path)
+			logger.Error().
+				Str("error", netErr.Error()).
+				Str("details", msg).
+				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+		}
+	}
 
 	if getErr != nil {
 		// Casting to the awserr.Error type will allow you to inspect the error
