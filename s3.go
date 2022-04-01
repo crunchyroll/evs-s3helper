@@ -73,9 +73,6 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	logger := log.With().
 		Str("object", s3Path).Str("range", byterange).Str("method", r.Method).Logger()
 
-	// TODO: This will use up the RAM in production
-	//getObject, getErr := a.s3Client.GetObject(s3Bucket, s3Path, byterange)
-
 	// Bypass AWS SDK for S3 GetObject() call, sign and get the object manually via HTTP
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, s3Bucket, conf.S3Path, s3Path)
 	r2, err := http.NewRequest(r.Method, s3url, nil)
@@ -201,7 +198,6 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500) // Return same error code back from S3 to Nginx
 		return
 	} else {
-		//defer getObject.Body.Close()
 		defer resp.Body.Close()
 		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 	}
@@ -218,7 +214,6 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", resp.ContentLength))
 	w.Header().Set("Content-Type", resp.Header.Get("Content-type"))
-	//w.Header().Set("ETag", *resp.ETag)
 
 	// Only return headers
 	if r2.Method == "HEAD" {
