@@ -114,7 +114,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	// Bail out on non-timeout error, or too many timeouts.
 	netErr, ok := err.(net.Error)
-	if ok != nil {
+	if ok {
 		isTimeout := ok && netErr.Timeout()
 		if isTimeout {
 			// Timed out connecting to S3
