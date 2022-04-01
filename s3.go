@@ -112,11 +112,9 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	resp, getErr := client.Do(r2)
 
-	// Bail out on non-timeout error, or too many timeouts.
-	netErr, ok := err.(net.Error)
-	if ok {
-		isTimeout := ok && netErr.Timeout()
-		if isTimeout {
+	if getErr != nil {
+		// timeout error or network errors
+		if netErr, ok := getErr.(net.Error); ok && netErr.Timeout() {
 			// Timed out connecting to S3
 			a.nrapp.RecordCustomMetric("s3-helper:timeout", float64(0))
 			msg := fmt.Sprintf("AWS S3 Timeout for %s/%s", s3Bucket, s3Path)
@@ -124,7 +122,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Str("error", netErr.Error()).
 				Str("details", msg).
 				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		} else {
+		} else if netErr, ok := getErr.(net.Error); ok {
 			// Network Error connecting to S3
 			a.nrapp.RecordCustomMetric("s3-helper:neterror", float64(0))
 			msg := fmt.Sprintf("AWS S3 Network Error for %s/%s", s3Bucket, s3Path)
@@ -133,9 +131,38 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				Str("details", msg).
 				Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
 		}
-	}
+		// More network errors
+		switch t := getErr.(type) {
+		case *net.OpError:
+			if t.Op == "dial" {
+				// "Unknown host"
+				a.nrapp.RecordCustomMetric("s3-helper:netunknownhost", float64(0))
+				msg := fmt.Sprintf("AWS S3 Unknown Host Error for %s/%s", s3Bucket, s3Path)
+				logger.Error().
+					Str("error", getErr.Error()).
+					Str("details", msg).
+					Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+			} else if t.Op == "read" {
+				// "Connection refused"
+				a.nrapp.RecordCustomMetric("s3-helper:connectionrefused", float64(0))
+				msg := fmt.Sprintf("AWS S3 Connection Refused Error for %s/%s", s3Bucket, s3Path)
+				logger.Error().
+					Str("error", getErr.Error()).
+					Str("details", msg).
+					Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+			}
+		case syscall.Errno:
+			if t == syscall.ECONNREFUSED {
+				// "Connection refused"
+				a.nrapp.RecordCustomMetric("s3-helper:connectionrefused", float64(0))
+				msg := fmt.Sprintf("AWS S3 Connection Refused Error for %s/%s", s3Bucket, s3Path)
+				logger.Error().
+					Str("error", getErr.Error()).
+					Str("details", msg).
+					Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
+			}
+		}
 
-	if getErr != nil {
 		// Casting to the awserr.Error type will allow you to inspect the error
 		// code returned by the service in code. The error code can be used
 		// to switch on context specific functionality. In this case a context
