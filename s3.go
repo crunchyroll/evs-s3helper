@@ -234,7 +234,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(resp.StatusCode) // Return same error code back from S3 to Nginx
 			nrtxn.NoticeError(errors.New(msg))
 			logger.Error().
-				Str("error", getErr.Error()).
+				Str("error", "Status code was outside 2xx range.").
 				Str("http_statuscode", fmt.Sprintf("%d", resp.StatusCode)).
 				Msg(fmt.Sprintf("s3:Get:Err - path:%s bad response code %d", s3Path, resp.StatusCode))
 			return
