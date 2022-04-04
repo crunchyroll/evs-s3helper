@@ -226,7 +226,19 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		defer resp.Body.Close()
-		a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
+		if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+			a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
+		} else {
+			a.nrapp.RecordCustomMetric(fmt.Sprintf("s3-helper:s3badrespons%d", resp.StatusCode), float64(0))
+			msg := fmt.Sprintf("[ERROR] s3:Get:Err - path:%s %v bad response code %d\n", s3Path, getErr, resp.StatusCode)
+			w.WriteHeader(resp.StatusCode) // Return same error code back from S3 to Nginx
+			nrtxn.NoticeError(errors.New(msg))
+			logger.Error().
+				Str("error", getErr.Error()).
+				Str("http_statuscode", fmt.Sprintf("%d", resp.StatusCode)).
+				Msg(fmt.Sprintf("s3:Get:Err - path:%s bad response code %d", s3Path, resp.StatusCode))
+			return
+		}
 	}
 
 	header := resp.Header
