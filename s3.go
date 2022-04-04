@@ -111,6 +111,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		}}
 
 	resp, getErr := client.Do(r2)
+	defer resp.Body.Close()
 
 	if getErr != nil {
 		// timeout error or network errors
@@ -225,7 +226,6 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500) // Return same error code back from S3 to Nginx
 		return
 	} else {
-		defer resp.Body.Close()
 		if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 			a.nrapp.RecordCustomMetric("s3-helper:s3success", float64(0))
 		} else {
