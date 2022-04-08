@@ -66,7 +66,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path[:6] == "/avod/" {
 		p := []rune(r.URL.Path)
-		s3Path = string(p[6:])
+		s3Path = string(p[5:])
 		s3Bucket = conf.S3AdBucket
 	}
 	byterange := r.Header.Get("Range")
@@ -75,6 +75,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	// Bypass AWS SDK for S3 GetObject() call, sign and get the object manually via HTTP
 	s3url := fmt.Sprintf("http://s3-%s.amazonaws.com/%s%s%s", conf.S3Region, s3Bucket, conf.S3Path, s3Path)
+	log.Debug().Msg(fmt.Sprintf("Signed S3 URL: %s\n", s3url))
 	r2, err := http.NewRequest(r.Method, s3url, nil)
 	if err != nil {
 		w.WriteHeader(403)
