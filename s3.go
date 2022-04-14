@@ -113,6 +113,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 
 	resp, getErr := client.Do(r2)
 
+	// resp is nil most likely if an error occurred
 	if getErr != nil {
 		// timeout error or network errors
 		if netErr, ok := getErr.(net.Error); ok && netErr.Timeout() {
@@ -193,9 +194,8 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 				} else {
 					a.nrapp.RecordCustomMetric(fmt.Sprintf("s3-helper:s3status%d", reqErr.StatusCode()), float64(0))
 				}
-			} else {
-				returnCode = resp.StatusCode
 			}
+
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket:
 				msg = fmt.Sprintf("bucket %s does not exist", s3Bucket)
@@ -218,11 +218,7 @@ func (a *App) proxyS3Media(w http.ResponseWriter, r *http.Request) {
 			Str("error", getErr.Error()).
 			Str("details", msg).
 			Str("s3_statuscode: ", fmt.Sprintf("%d", returnCode)).
-			Str("http_statuscode", fmt.Sprintf("%d", resp.StatusCode)).
 			Msg(fmt.Sprintf("s3:Get:Err - path:%s", s3Path))
-		if returnCode == 200 {
-			returnCode = resp.StatusCode
-		}
 		w.WriteHeader(500) // Return same error code back from S3 to Nginx
 		return
 	} else {
